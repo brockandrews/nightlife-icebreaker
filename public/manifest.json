@@ -1,0 +1,16 @@
+{
+  "name": "Nightlife Icebreaker",
+  "short_name": "Nightlife Bingo",
+  "description": "Digital Human Bingo for Nightlife and Mixers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0E14",
+  "theme_color": "#0B0E14",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

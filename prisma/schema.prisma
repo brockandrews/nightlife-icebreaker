@@ -1,0 +1,203 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Event {
+  id               String              @id @default(cuid())
+  name             String
+  venueName        String
+  startTime        DateTime            @default(now())
+  endTime          DateTime
+  gameStartTime    DateTime?
+  gameEndTime      DateTime?
+  status           String              @default("ACTIVE") // DRAFT, ACTIVE, PAUSED, COMPLETED
+  cardSize         String              @default("5x5") // 5x5, 4x4
+  scoringModel     String              @default("MOST_CONNECTIONS") // MOST_CONNECTIONS, FIRST_TO_COMPLETE
+  completionMode   String              @default("AUTO_FILL") // AUTO_FILL, PROMPT_TO_REVEAL
+  prizeDescription String              @default("VIP Drinks & Bottle Service Prize")
+  doorCodeToken    String              @unique @default(cuid())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  players          Player[]
+  questions        Question[]
+  cards            Card[]
+  connections      Connection[]
+  connectionAttempts ConnectionAttempt[]
+  announcements    Announcement[]
+  reports          Report[]
+}
+
+model Question {
+  id                 String           @id @default(cuid())
+  eventId            String?
+  event              Event?           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category           String           @default("Social")
+  prompt             String
+  options            String           // JSON string of string[]
+  traitTemplate      String           // e.g., "Loves {value} music"
+  conversationPrompt String?          // e.g., "Ask them what their favorite {value} track is!"
+  isCustom           Boolean          @default(false)
+  order              Int              @default(0)
+  createdAt          DateTime         @default(now())
+
+  surveyResponses    SurveyResponse[]
+}
+
+model Player {
+  id              String            @id @default(cuid())
+  eventId         String
+  event           Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  displayName     String
+  shortCode       String            // 4-character uppercase alphanumeric (e.g. K7M2)
+  identityToken   String            @unique @default(cuid())
+  marketingOptIn  Boolean           @default(false)
+  contactEmail    String?
+  contactPhone    String?
+  ageConfirmed    Boolean           @default(true)
+  checkedInAt     DateTime          @default(now())
+  lastActiveAt    DateTime          @default(now())
+  lastScannedAt   DateTime?         // Anti-fraud cooldown tracking
+
+  surveyResponses SurveyResponse[]
+  card            Card?
+
+  initiatedAttempts ConnectionAttempt[] @relation("InitiatedAttempts")
+  targetedAttempts  ConnectionAttempt[] @relation("TargetedAttempts")
+
+  initiatedConnections Connection[]     @relation("PlayerAConnections")
+  receivedConnections  Connection[]     @relation("PlayerBConnections")
+
+  reportsSubmitted Report[]             @relation("ReporterRelation")
+  reportsReceived  Report[]             @relation("ReportedRelation")
+
+  blockedPlayers   BlockedPlayer[]      @relation("BlockerRelation")
+  blockedBy        BlockedPlayer[]      @relation("BlockedRelation")
+
+  @@unique([eventId, shortCode])
+  @@index([eventId])
+}
+
+model SurveyResponse {
+  id             String   @id @default(cuid())
+  playerId       String
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption String
+  derivedTrait   String
+  createdAt      DateTime @default(now())
+
+  @@unique([playerId, questionId])
+  @@index([playerId])
+}
+
+model Card {
+  id              String       @id @default(cuid())
+  playerId        String       @unique
+  player          Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  eventId         String
+  event           Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  isCompleted     Boolean      @default(false)
+  completedAt     DateTime?
+  winningLineType String?
+  createdAt       DateTime     @default(now())
+
+  squares         CardSquare[]
+
+  @@index([eventId])
+}
+
+model CardSquare {
+  id                 String    @id @default(cuid())
+  cardId             String
+  card               Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  position           Int       // 0-24 (5x5) or 0-15 (4x4)
+  traitId            String
+  promptText         String
+  conversationPrompt String?
+  isFreeSpace        Boolean   @default(false)
+  isCompleted        Boolean   @default(false)
+  matchedPlayerId    String?
+  matchedPlayerName  String?
+  completedAt        DateTime?
+
+  @@unique([cardId, position])
+  @@index([cardId])
+}
+
+model ConnectionAttempt {
+  id          String    @id @default(cuid())
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  initiatorId String
+  initiator   Player    @relation("InitiatedAttempts", fields: [initiatorId], references: [id], onDelete: Cascade)
+  targetId    String
+  target      Player    @relation("TargetedAttempts", fields: [targetId], references: [id], onDelete: Cascade)
+  status      String    @default("PENDING") // PENDING, CONFIRMED, EXPIRED, DISMISSED
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  resolvedAt  DateTime?
+
+  @@index([eventId, status])
+  @@index([targetId, status])
+}
+
+model Connection {
+  id                 String   @id @default(cuid())
+  eventId            String
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  playerAId          String
+  playerA            Player   @relation("PlayerAConnections", fields: [playerAId], references: [id], onDelete: Cascade)
+  playerBId          String
+  playerB            Player   @relation("PlayerBConnections", fields: [playerBId], references: [id], onDelete: Cascade)
+  pairKey            String   // Canonical format: "min(playerA, playerB):max(playerA, playerB)"
+  squaresSatisfiedA  Int      @default(0)
+  squaresSatisfiedB  Int      @default(0)
+  confirmedAt        DateTime @default(now())
+
+  @@unique([eventId, pairKey])
+  @@index([eventId])
+}
+
+model Announcement {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  message   String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@index([eventId])
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter   Player   @relation("ReporterRelation", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedId String
+  reported   Player   @relation("ReportedRelation", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason     String
+  createdAt  DateTime @default(now())
+
+  @@index([eventId])
+}
+
+model BlockedPlayer {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   Player   @relation("BlockerRelation", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   Player   @relation("BlockedRelation", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
