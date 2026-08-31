@@ -97,11 +97,14 @@ export default function GuestGamePage() {
             expiresAt: data.pendingIncomingAttempt.expiresAt,
           });
         }
+      } else {
+        localStorage.removeItem(`player_${code.toUpperCase()}`);
+        router.replace(`/e/${code}`);
       }
     } catch (err) {
       console.error("Failed to refresh player:", err);
     }
-  }, []);
+  }, [code, router]);
 
   const refreshLeaderboard = useCallback(async (eventId: string) => {
     try {
