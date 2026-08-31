@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { STANDARD_QUESTION_BANK } from "@/lib/constants";
 
 export async function GET(
   request: Request,
@@ -20,12 +21,33 @@ export async function GET(
       );
     }
 
-    const questions = await prisma.question.findMany({
+    let questions = await prisma.question.findMany({
       where: {
         OR: [{ eventId: event.id }, { eventId: null }],
       },
       orderBy: { order: "asc" },
     });
+
+    // Auto-seed questions if this event has none
+    if (questions.length === 0) {
+      await prisma.question.createMany({
+        data: STANDARD_QUESTION_BANK.map((q) => ({
+          eventId: event.id,
+          category: q.category,
+          prompt: q.prompt,
+          options: q.options,
+          traitTemplate: q.traitTemplate,
+          conversationPrompt: q.conversationPrompt,
+          isCustom: false,
+          order: q.order,
+        })),
+      });
+
+      questions = await prisma.question.findMany({
+        where: { eventId: event.id },
+        orderBy: { order: "asc" },
+      });
+    }
 
     const parsedQuestions = questions.map((q) => {
       let options: string[] = [];

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateShortCode } from "@/lib/utils";
+import { STANDARD_QUESTION_BANK } from "@/lib/constants";
 
 export async function GET() {
   try {
@@ -65,25 +66,19 @@ export async function POST(request: Request) {
       },
     });
 
-    // Copy global questions to this event
-    const globalQuestions = await prisma.question.findMany({
-      where: { eventId: null },
+    // Seed standard questions for the new event
+    await prisma.question.createMany({
+      data: STANDARD_QUESTION_BANK.map((q) => ({
+        eventId: newEvent.id,
+        category: q.category,
+        prompt: q.prompt,
+        options: q.options,
+        traitTemplate: q.traitTemplate,
+        conversationPrompt: q.conversationPrompt,
+        isCustom: false,
+        order: q.order,
+      })),
     });
-
-    if (globalQuestions.length > 0) {
-      await prisma.question.createMany({
-        data: globalQuestions.map((q) => ({
-          eventId: newEvent.id,
-          category: q.category,
-          prompt: q.prompt,
-          options: q.options,
-          traitTemplate: q.traitTemplate,
-          conversationPrompt: q.conversationPrompt,
-          isCustom: false,
-          order: q.order,
-        })),
-      });
-    }
 
     return NextResponse.json({ success: true, event: newEvent });
   } catch (error: any) {
