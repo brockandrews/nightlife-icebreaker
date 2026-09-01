@@ -35,6 +35,17 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  const searchParams = request.nextUrl.searchParams;
+
+  // If OAuth or email verification redirects to any page with ?code=, forward directly to /auth/callback
+  if (searchParams.has("code") && path !== "/auth/callback") {
+    const code = searchParams.get("code")!;
+    const next = searchParams.get("next") || "/promoter";
+    const callbackUrl = new URL("/auth/callback", request.url);
+    callbackUrl.searchParams.set("code", code);
+    callbackUrl.searchParams.set("next", next);
+    return NextResponse.redirect(callbackUrl);
+  }
 
   // Protect Host & Promoter paths (except public projector/qr pages if needed, but promoter dashboard & management requires auth)
   const isProtectedHostRoute =
