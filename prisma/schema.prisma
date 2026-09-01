@@ -33,9 +33,11 @@ model Event {
   sponsorLogoUrl   String?             // Sponsor slot
   sponsorMessage   String?
   startTime        DateTime            @default(now())
+  scheduledDate    DateTime            @default(now())
   endTime          DateTime
   gameStartTime    DateTime?
   gameEndTime      DateTime?
+  completedAt      DateTime?
   status           String              @default("ACTIVE") // DRAFT, ACTIVE, PAUSED, COMPLETED
   cardSize         String              @default("5x5") // 5x5, 4x4
   scoringModel     String              @default("MOST_CONNECTIONS") // MOST_CONNECTIONS, FIRST_TO_COMPLETE

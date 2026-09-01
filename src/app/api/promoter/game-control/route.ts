@@ -20,11 +20,13 @@ export async function POST(request: Request) {
 
     let updatedStatus = event.status;
     let updatedEndTime = event.gameEndTime;
+    let updatedCompletedAt = event.completedAt;
 
     if (action === "PAUSE") {
       updatedStatus = "PAUSED";
     } else if (action === "RESUME") {
       updatedStatus = "ACTIVE";
+      updatedCompletedAt = null;
     } else if (action === "EXTEND") {
       const baseTime = event.gameEndTime ? new Date(event.gameEndTime) : new Date();
       updatedEndTime = new Date(baseTime.getTime() + extendMinutes * 60 * 1000);
@@ -32,6 +34,7 @@ export async function POST(request: Request) {
     } else if (action === "LOCK_SCORING" || action === "END_GAME") {
       updatedStatus = "COMPLETED";
       updatedEndTime = new Date();
+      updatedCompletedAt = new Date();
     }
 
     const updatedEvent = await prisma.event.update({
@@ -39,6 +42,7 @@ export async function POST(request: Request) {
       data: {
         status: updatedStatus,
         gameEndTime: updatedEndTime,
+        completedAt: updatedCompletedAt,
       },
     });
 

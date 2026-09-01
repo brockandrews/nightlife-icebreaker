@@ -16,8 +16,15 @@ import {
 
 export default function NewEventPage() {
   const router = useRouter();
+  const getDefaultScheduledDate = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  };
+
   const [name, setName] = useState("");
   const [venueName, setVenueName] = useState("");
+  const [scheduledDate, setScheduledDate] = useState(getDefaultScheduledDate());
   const [doorCodeToken, setDoorCodeToken] = useState("");
   const [cardSize, setCardSize] = useState<"5x5" | "4x4">("5x5");
   const [scoringModel, setScoringModel] = useState<
@@ -49,6 +56,7 @@ export default function NewEventPage() {
         body: JSON.stringify({
           name: name.trim(),
           venueName: venueName.trim(),
+          scheduledDate: scheduledDate ? new Date(scheduledDate).toISOString() : new Date().toISOString(),
           doorCodeToken: doorCodeToken.trim() || undefined,
           cardSize,
           scoringModel,
@@ -127,6 +135,25 @@ export default function NewEventPage() {
               required
               className="w-full py-2.5 px-3.5 bg-[#0B0E14] border border-slate-700 focus:border-cyan-400 rounded-xl text-sm text-white focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              Scheduled Event Date & Time *
+            </label>
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-cyan-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="datetime-local"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                required
+                className="w-full py-2.5 pl-10 pr-3.5 bg-[#0B0E14] border border-slate-700 focus:border-cyan-400 rounded-xl text-sm text-white focus:outline-none [color-scheme:dark]"
+              />
+            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block">
+              When this icebreaker game is scheduled to run.
+            </span>
           </div>
 
           <div>

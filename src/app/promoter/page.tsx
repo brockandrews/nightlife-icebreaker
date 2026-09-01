@@ -19,8 +19,23 @@ import {
   Building,
   User,
   Gift,
+  MapPin,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+
+function formatEventDateTime(dateString?: string | null) {
+  if (!dateString) return null;
+  const d = new Date(dateString);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export default function HostDashboard() {
   const router = useRouter();
@@ -42,7 +57,13 @@ export default function HostDashboard() {
 
         const eventsData = await eventsRes.json();
         if (eventsData.success && eventsData.events) {
-          setEvents(eventsData.events);
+          // Sort newest to oldest by scheduled date
+          const sorted = [...eventsData.events].sort(
+            (a, b) =>
+              new Date(b.scheduledDate || b.startTime).getTime() -
+              new Date(a.scheduledDate || a.startTime).getTime()
+          );
+          setEvents(sorted);
         }
 
         const hostData = await hostRes.json();
@@ -157,7 +178,7 @@ export default function HostDashboard() {
         <div className="p-4 bg-[#151C2C] border border-slate-800 rounded-2xl">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 mb-1">
             <Calendar className="w-4 h-4 text-cyan-400" />
-            <span>Your Hosted Events</span>
+            <span>Your Hosted Games</span>
           </div>
           <span className="text-2xl font-black text-white">{events.length}</span>
         </div>
@@ -187,10 +208,10 @@ export default function HostDashboard() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-black text-white uppercase tracking-wider">
-            Your Events
+            Your Games & Events
           </h2>
           <span className="text-xs text-slate-400">
-            {events.length} {events.length === 1 ? "event" : "events"} managed
+            Sorted newest to oldest by scheduled date
           </span>
         </div>
 
@@ -198,14 +219,14 @@ export default function HostDashboard() {
           <div className="p-12 text-center bg-[#121824] rounded-2xl border border-slate-800">
             <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
             <p className="text-sm font-semibold text-slate-400">
-              Loading your events...
+              Loading your games...
             </p>
           </div>
         ) : events.length === 0 ? (
           <div className="p-12 text-center bg-[#121824] rounded-2xl border border-slate-800">
             <Sparkles className="w-8 h-8 text-cyan-400 mx-auto mb-2" />
             <h3 className="text-base font-bold text-white mb-1">
-              No Events Created Yet
+              No Games Created Yet
             </h3>
             <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto">
               Launch your first icebreaker mixer in under 2 minutes. Your first event is 100% free!
@@ -221,17 +242,29 @@ export default function HostDashboard() {
           <div className="space-y-3">
             {events.map((evt) => {
               const isActive = evt.status === "ACTIVE";
+              const isCompleted = evt.status === "COMPLETED";
+              const scheduledFormatted = formatEventDateTime(
+                evt.scheduledDate || evt.startTime
+              );
+              const completedFormatted = formatEventDateTime(
+                evt.completedAt || evt.gameEndTime
+              );
+              const createdFormatted = formatEventDateTime(evt.createdAt);
+
               return (
                 <div
                   key={evt.id}
-                  className="p-5 bg-[#151C2C] border border-slate-800 rounded-2xl hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg"
+                  className="p-5 bg-[#151C2C] border border-slate-800 rounded-2xl hover:border-slate-700 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg"
                 >
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="space-y-1.5">
+                    {/* Status & Door Code Badges */}
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                           isActive
                             ? "bg-green-500/20 text-green-400 border border-green-500/40 animate-pulse"
+                            : isCompleted
+                            ? "bg-purple-500/20 text-purple-300 border border-purple-500/40"
                             : evt.status === "PAUSED"
                             ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
                             : "bg-slate-800 text-slate-400"
@@ -244,17 +277,49 @@ export default function HostDashboard() {
                       </span>
                     </div>
 
+                    {/* Event Title */}
                     <h3 className="text-lg font-black text-white leading-tight">
                       {evt.name}
                     </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      📍 {evt.venueName} • {evt._count?.players || 0} Players •{" "}
-                      {evt._count?.connections || 0} Connections
-                    </p>
+
+                    {/* Venue and Metrics */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                      <span className="flex items-center gap-1 text-slate-300">
+                        <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                        {evt.venueName}
+                      </span>
+                      <span>•</span>
+                      <span>👥 {evt._count?.players || 0} Players</span>
+                      <span>•</span>
+                      <span>🤝 {evt._count?.connections || 0} Meets</span>
+                    </div>
+
+                    {/* Dates Display HUD */}
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
+                      {scheduledFormatted && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 font-medium">
+                          <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Scheduled: <strong>{scheduledFormatted}</strong></span>
+                        </div>
+                      )}
+
+                      {isCompleted && completedFormatted && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-500/30 text-purple-300 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Completed: <strong>{completedFormatted}</strong></span>
+                        </div>
+                      )}
+
+                      {createdFormatted && (
+                        <span className="text-slate-500 text-[10px] pl-1">
+                          Created: {createdFormatted}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <button
                       onClick={() => router.push(`/promoter/${evt.id}`)}
                       className="py-2 px-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-purple-900/30"

@@ -8,15 +8,18 @@ export async function GET() {
   try {
     const host = await getAuthenticatedHost();
 
-    // Query events owned by this host (or global unassigned events if any)
-    const whereClause = host
-      ? {
-          OR: [{ hostId: host.id }, { hostId: null }],
-        }
-      : {};
+    if (!host) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. Please log in to view your host dashboard." },
+        { status: 401 }
+      );
+    }
 
+    // Strictly fetch events owned by the authenticated host, ordered newest to oldest by scheduled date
     const events = await prisma.event.findMany({
-      where: whereClause,
+      where: {
+        hostId: host.id,
+      },
       include: {
         _count: {
           select: {
@@ -25,10 +28,10 @@ export async function GET() {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { scheduledDate: "desc" },
     });
 
-    return NextResponse.json({ success: true, events, host: host || null });
+    return NextResponse.json({ success: true, events, host });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },
@@ -41,10 +44,18 @@ export async function POST(request: Request) {
   try {
     const host = await getAuthenticatedHost();
 
+    if (!host) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized. You must be signed in to create an event." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const {
       name,
       venueName,
+      scheduledDate,
       startTime,
       endTime,
       cardSize = "5x5",
@@ -58,27 +69,34 @@ export async function POST(request: Request) {
       doorCodeToken,
     } = body;
 
+    const eventScheduledDate = scheduledDate
+      ? new Date(scheduledDate)
+      : startTime
+      ? new Date(startTime)
+      : new Date();
+
+    const eventEndTime = endTime
+      ? new Date(endTime)
+      : new Date(eventScheduledDate.getTime() + 6 * 60 * 60 * 1000);
+
     const code =
       doorCodeToken?.toUpperCase().trim() ||
       `EVENT-${generateShortCode()}`;
 
     const newEvent = await prisma.event.create({
       data: {
-        hostId: host?.id || null,
+        hostId: host.id,
         name: name || "MixxSocial Mixer & Game",
         venueName: venueName || "Lounge & Club",
         accentColor: accentColor || "#06B6D4",
         logoUrl,
         sponsorLogoUrl,
         sponsorMessage,
-        startTime: startTime ? new Date(startTime) : new Date(),
-        endTime: endTime
-          ? new Date(endTime)
-          : new Date(Date.now() + 6 * 60 * 60 * 1000),
-        gameStartTime: new Date(),
-        gameEndTime: endTime
-          ? new Date(endTime)
-          : new Date(Date.now() + 6 * 60 * 60 * 1000),
+        scheduledDate: eventScheduledDate,
+        startTime: eventScheduledDate,
+        endTime: eventEndTime,
+        gameStartTime: eventScheduledDate,
+        gameEndTime: eventEndTime,
         cardSize,
         scoringModel,
         completionMode,
