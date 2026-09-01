@@ -19,6 +19,7 @@ export async function GET(request: Request) {
         const displayName =
           metadata.displayName ||
           metadata.full_name ||
+          metadata.name ||
           user.email?.split("@")[0] ||
           "Event Host";
         const organization =
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
           },
           update: {
             email: user.email!,
+            displayName: displayName,
           },
         });
       } catch (dbErr) {
