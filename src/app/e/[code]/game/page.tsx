@@ -269,6 +269,69 @@ export default function GuestGamePage() {
     };
   }, [player?.id, player?.eventId, refreshPlayerData, refreshLeaderboard]);
 
+  // 2b. High-Frequency Polling (1s) while awaiting Outgoing Handshake Confirmation
+  useEffect(() => {
+    if (!activeHandshakeAttempt?.id || activeHandshakeAttempt.mode !== "OUTGOING" || !player?.id) {
+      return;
+    }
+
+    const pollTimer = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `/api/handshake/${activeHandshakeAttempt.id}/status?playerId=${player.id}`
+        );
+        const data = await res.json();
+        if (data.success) {
+          if (data.status === "CONFIRMED") {
+            setActiveHandshakeAttempt(null);
+
+            // If 2+ squares match -> show strategic picker modal!
+            if (data.requiresSelection && data.candidateSquares?.length > 1) {
+              setPickerData({
+                partnerId: data.partnerId,
+                partnerName: data.partnerName,
+                candidateSquares: data.candidateSquares,
+              });
+            } else if (data.autoClaimedSquare) {
+              // 1 square matched and was auto-claimed
+              setCelebrationData({
+                partnerName: data.partnerName,
+                matchedSquares: [data.autoClaimedSquare],
+                completionMode: data.completionMode || "AUTO_FILL",
+              });
+            } else {
+              // 0 matches (still recorded as a meet)
+              setCelebrationData({
+                partnerName: data.partnerName,
+                matchedSquares: [],
+                completionMode: data.completionMode || "AUTO_FILL",
+              });
+            }
+
+            refreshPlayerData(player.id);
+            if (player.eventId) refreshLeaderboard(player.eventId);
+          } else if (data.status === "DISMISSED") {
+            const pName = activeHandshakeAttempt.partnerName;
+            setActiveHandshakeAttempt(null);
+            setScanError(`${pName} declined the connection.`);
+          } else if (data.status === "EXPIRED") {
+            setActiveHandshakeAttempt(null);
+            setScanError("Connection attempt timed out (60s expired).");
+          }
+        }
+      } catch (err) {}
+    }, 1000);
+
+    return () => clearInterval(pollTimer);
+  }, [
+    activeHandshakeAttempt?.id,
+    activeHandshakeAttempt?.mode,
+    player?.id,
+    player?.eventId,
+    refreshPlayerData,
+    refreshLeaderboard,
+  ]);
+
   // 3. Initiate Handshake Connection (Scan or PIN)
   const handleScanTarget = async (targetCode: string) => {
     if (!player?.id) return;
