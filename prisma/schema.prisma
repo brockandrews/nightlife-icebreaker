@@ -8,10 +8,30 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model Host {
+  id                  String   @id // Matches Supabase auth.users.id (UUID)
+  email               String   @unique
+  displayName         String
+  organization        String?
+  role                String   @default("OWNER") // OWNER, MANAGER, STAFF
+  freeEventsRemaining Int      @default(1)
+  stripeCustomerId    String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  events              Event[]
+}
+
 model Event {
   id               String              @id @default(cuid())
+  hostId           String?
+  host             Host?               @relation(fields: [hostId], references: [id], onDelete: SetNull)
   name             String
   venueName        String
+  accentColor      String?             // Host-configurable accent color
+  logoUrl          String?
+  sponsorLogoUrl   String?             // Sponsor slot
+  sponsorMessage   String?
   startTime        DateTime            @default(now())
   endTime          DateTime
   gameStartTime    DateTime?
@@ -32,6 +52,8 @@ model Event {
   connectionAttempts ConnectionAttempt[]
   announcements    Announcement[]
   reports          Report[]
+
+  @@index([hostId])
 }
 
 model Question {
