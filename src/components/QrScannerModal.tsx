@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Camera, KeyRound, AlertCircle, Loader2, Sparkles } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
 
 interface QrScannerModalProps {
   onScanTarget: (code: string) => Promise<void>;
@@ -20,7 +19,7 @@ export function QrScannerModal({
   const [pinCode, setPinCode] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<any>(null);
   const qrRegionId = "qr-reader-viewport";
 
   // Handle PIN input change
@@ -46,6 +45,7 @@ export function QrScannerModal({
     try {
       setCameraError(null);
       if (!scannerRef.current) {
+        const { Html5Qrcode } = await import("html5-qrcode");
         scannerRef.current = new Html5Qrcode(qrRegionId);
       }
 
@@ -56,7 +56,7 @@ export function QrScannerModal({
           qrbox: { width: 220, height: 220 },
           aspectRatio: 1.0,
         },
-        (decodedText) => {
+        (decodedText: string) => {
           // Successfully scanned QR!
           stopScanner();
           onScanTarget(decodedText);
