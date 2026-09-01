@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Sparkles,
   ArrowLeft,
@@ -81,19 +82,27 @@ export default function NewEventPage() {
   return (
     <main className="min-h-screen p-5 max-w-2xl mx-auto text-white">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-4 border-b border-slate-800 mb-6">
-        <button
-          onClick={() => router.push("/promoter")}
-          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-xl font-black text-white">Create New Event</h1>
-          <span className="text-xs text-slate-400">
-            Configure your human bingo rules and game settings
-          </span>
+      <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/promoter")}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-xl font-black text-white">Create New Event</h1>
+            <span className="text-xs text-slate-400">
+              Configure your human bingo rules and game settings
+            </span>
+          </div>
         </div>
+        <Link
+          href="/logout"
+          className="py-1.5 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-white border border-red-500/40 text-xs font-bold transition-all"
+        >
+          Log Out
+        </Link>
       </div>
 
       {error && (

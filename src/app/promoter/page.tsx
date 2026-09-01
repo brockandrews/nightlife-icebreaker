@@ -161,14 +161,14 @@ export default function HostDashboard() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            title="Sign Out"
-            className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 transition-all"
+            className="py-2 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 hover:text-white border border-red-500/40 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
           >
             {signingOut ? (
-              <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             )}
+            <span>Log Out</span>
           </button>
         </div>
       </div>
