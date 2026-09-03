@@ -18,8 +18,7 @@ export default function LogoutPage() {
       } catch (e) {
         console.error("Logout error:", e);
       } finally {
-        router.push("/login");
-        router.refresh();
+        window.location.href = "/login";
       }
     }
     doLogout();

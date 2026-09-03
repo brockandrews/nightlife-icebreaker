@@ -83,12 +83,11 @@ export default function HostDashboard() {
     setSigningOut(true);
     try {
       await supabase.auth.signOut();
-      router.push("/login");
-      router.refresh();
+      await fetch("/api/auth/signout", { method: "POST" });
     } catch (err) {
       console.error("Sign out error:", err);
     } finally {
-      setSigningOut(false);
+      window.location.href = "/login";
     }
   };
 
