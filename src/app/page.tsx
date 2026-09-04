@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Sparkles,
   QrCode,
@@ -9,7 +10,6 @@ import {
   Trophy,
   ShieldCheck,
   ArrowRight,
-  Zap,
 } from "lucide-react";
 
 export default function Home() {
@@ -26,39 +26,43 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-between p-5 max-w-lg mx-auto">
       {/* Top Header */}
-      <div className="w-full flex items-center justify-between pt-2 pb-6">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-400 text-black flex items-center justify-center font-black shadow-lg shadow-cyan-500/30">
-            <Zap className="w-5 h-5 fill-black" />
+      <header className="w-full flex items-center justify-between pt-2 pb-6">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-[#151C2C] border border-cyan-500/30 flex items-center justify-center p-1.5 shadow-lg shadow-cyan-500/20">
+            <img
+              src="/logo.svg"
+              alt="MixxSocial Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
-            <h1 className="text-base font-black tracking-tight text-white leading-none">
-              NIGHTLIFE
+            <h1 className="text-lg font-black tracking-tight text-white leading-none">
+              Mixx<span className="text-cyan-400">Social</span>
             </h1>
-            <span className="text-[10px] tracking-widest uppercase font-bold text-cyan-400">
-              Icebreaker Bingo
+            <span className="text-[10px] tracking-wider uppercase font-bold text-slate-400">
+              Event Icebreaker Platform
             </span>
           </div>
         </div>
 
-        <a
+        <Link
           href="/promoter"
-          className="py-1.5 px-3 rounded-xl bg-purple-950/60 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-bold transition-all"
+          className="py-1.5 px-3.5 rounded-xl bg-purple-950/60 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-bold transition-all shadow-sm"
         >
           Host / Promoter
-        </a>
-      </div>
+        </Link>
+      </header>
 
       {/* Hero Content */}
       <div className="w-full text-center my-auto py-6">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold mb-4 animate-bounce-subtle">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold mb-4">
           <Sparkles className="w-3.5 h-3.5" />
           <span>Real-Time Social Game for Events</span>
         </div>
 
         <h2 className="text-4xl font-black tracking-tight text-white leading-tight mb-3">
           Meet Strangers. <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-amber-300">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-purple-400">
             Play Human Bingo.
           </span>
         </h2>
@@ -98,26 +102,57 @@ export default function Home() {
         </form>
       </div>
 
-      {/* Feature Highlights */}
-      <div className="w-full grid grid-cols-3 gap-2 pt-4 pb-2 border-t border-slate-800 text-center">
-        <div className="p-2 rounded-xl bg-[#121824] border border-slate-800/80">
-          <QrCode className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
-          <span className="text-[10px] font-bold text-slate-300 block leading-tight">
-            Mutual QR Handshake
-          </span>
+      {/* Feature Highlights & Footer */}
+      <div className="w-full space-y-4 pt-4 border-t border-slate-800">
+        <div className="w-full grid grid-cols-3 gap-2 text-center">
+          <div className="p-2 rounded-xl bg-[#121824] border border-slate-800/80">
+            <QrCode className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+            <span className="text-[10px] font-bold text-slate-300 block leading-tight">
+              Mutual QR Handshake
+            </span>
+          </div>
+          <div className="p-2 rounded-xl bg-[#121824] border border-slate-800/80">
+            <Trophy className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+            <span className="text-[10px] font-bold text-slate-300 block leading-tight">
+              Live Leaderboard
+            </span>
+          </div>
+          <div className="p-2 rounded-xl bg-[#121824] border border-slate-800/80">
+            <ShieldCheck className="w-4 h-4 text-green-400 mx-auto mb-1" />
+            <span className="text-[10px] font-bold text-slate-300 block leading-tight">
+              Safe & Platonic Only
+            </span>
+          </div>
         </div>
-        <div className="p-2 rounded-xl bg-[#121824] border border-slate-800/80">
-          <Trophy className="w-4 h-4 text-amber-400 mx-auto mb-1" />
-          <span className="text-[10px] font-bold text-slate-300 block leading-tight">
-            Live Venue Leaderboard
-          </span>
-        </div>
-        <div className="p-2 rounded-xl bg-[#121824] border border-slate-800/80">
-          <ShieldCheck className="w-4 h-4 text-green-400 mx-auto mb-1" />
-          <span className="text-[10px] font-bold text-slate-300 block leading-tight">
-            Safe & Platonic Only
-          </span>
-        </div>
+
+        {/* Legal Footer */}
+        <footer className="pt-3 pb-2 text-center space-y-2 border-t border-slate-900">
+          <div className="flex items-center justify-center gap-4 text-xs font-semibold text-slate-400">
+            <Link
+              href="/privacy"
+              className="hover:text-cyan-400 transition-colors"
+            >
+              Privacy Policy
+            </Link>
+            <span>•</span>
+            <Link
+              href="/terms"
+              className="hover:text-cyan-400 transition-colors"
+            >
+              Terms of Service
+            </Link>
+            <span>•</span>
+            <a
+              href="mailto:support@mixxsocial.com"
+              className="hover:text-cyan-400 transition-colors"
+            >
+              Support
+            </a>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            © {new Date().getFullYear()} MixxSocial. All rights reserved.
+          </p>
+        </footer>
       </div>
     </main>
   );
