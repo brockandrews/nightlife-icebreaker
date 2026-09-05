@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -13,7 +13,9 @@ import {
   Calendar,
   MapPin,
   Flame,
+  CreditCard,
 } from "lucide-react";
+import PaywallModal from "@/components/PaywallModal";
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -39,9 +41,37 @@ export default function NewEventPage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hostInfo, setHostInfo] = useState<any>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.host) {
+          setHostInfo(d.host);
+          const total =
+            (d.host.freeEventsRemaining || 0) + (d.host.purchasedCredits || 0);
+          if (total <= 0) {
+            setPaywallOpen(true);
+          }
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  const totalCredits =
+    (hostInfo?.freeEventsRemaining || 0) + (hostInfo?.purchasedCredits || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (hostInfo && totalCredits <= 0) {
+      setPaywallOpen(true);
+      setError("An event pass is required to create a game. Please select a pass package.");
+      return;
+    }
+
     if (!name.trim() || !venueName.trim()) {
       setError("Please fill in event and venue names");
       return;
@@ -67,6 +97,13 @@ export default function NewEventPage() {
       });
 
       const data = await res.json();
+      if (res.status === 402 || data.code === "PAYWALL_REQUIRED") {
+        setPaywallOpen(true);
+        setError(data.error || "An event pass is required to create a game.");
+        setLoading(false);
+        return;
+      }
+
       if (data.success && data.event) {
         router.push(`/promoter/${data.event.id}`);
       } else {
@@ -108,6 +145,25 @@ export default function NewEventPage() {
       {error && (
         <div className="p-3 mb-4 bg-red-950/80 border border-red-500/60 rounded-xl text-red-200 text-xs">
           {error}
+        </div>
+      )}
+
+      {hostInfo && totalCredits <= 0 && (
+        <div className="p-4 mb-6 bg-amber-950/60 border border-amber-500/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2.5 text-xs text-amber-200">
+            <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+            <span>
+              <strong>0 Event Passes Available.</strong> You have used your free event. An event pass is required to launch this game.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPaywallOpen(true)}
+            className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 text-black font-extrabold text-xs shrink-0 flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Buy Passes</span>
+          </button>
         </div>
       )}
 
@@ -380,6 +436,11 @@ export default function NewEventPage() {
           )}
         </button>
       </form>
+
+      <PaywallModal
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+      />
     </main>
   );
 }

@@ -22,8 +22,11 @@ import {
   MapPin,
   CheckCircle2,
   Clock,
+  CreditCard,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import PaywallModal from "@/components/PaywallModal";
+import confetti from "canvas-confetti";
 
 function formatEventDateTime(dateString?: string | null) {
   if (!dateString) return null;
@@ -43,40 +46,72 @@ export default function HostDashboard() {
   const [hostInfo, setHostInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
 
   const supabase = createClient();
 
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [eventsRes, hostRes] = await Promise.all([
+        fetch("/api/events"),
+        fetch("/api/auth/me"),
+      ]);
+
+      const eventsData = await eventsRes.json();
+      if (eventsData.success && eventsData.events) {
+        // Sort newest to oldest by scheduled date
+        const sorted = [...eventsData.events].sort(
+          (a, b) =>
+            new Date(b.scheduledDate || b.startTime).getTime() -
+            new Date(a.scheduledDate || a.startTime).getTime()
+        );
+        setEvents(sorted);
+      }
+
+      const hostData = await hostRes.json();
+      if (hostData.success && hostData.host) {
+        setHostInfo(hostData.host);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    async function loadDashboardData() {
-      try {
-        setLoading(true);
-        const [eventsRes, hostRes] = await Promise.all([
-          fetch("/api/events"),
-          fetch("/api/auth/me"),
-        ]);
+    loadDashboardData();
 
-        const eventsData = await eventsRes.json();
-        if (eventsData.success && eventsData.events) {
-          // Sort newest to oldest by scheduled date
-          const sorted = [...eventsData.events].sort(
-            (a, b) =>
-              new Date(b.scheduledDate || b.startTime).getTime() -
-              new Date(a.scheduledDate || a.startTime).getTime()
-          );
-          setEvents(sorted);
-        }
+    // Check for Stripe Checkout return
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const payment = params.get("payment");
+      const sessionId = params.get("session_id");
 
-        const hostData = await hostRes.json();
-        if (hostData.success && hostData.host) {
-          setHostInfo(hostData.host);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
+      if (payment === "success" && sessionId) {
+        fetch(`/api/billing/verify-session?session_id=${sessionId}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) {
+              setPaymentBanner(
+                `🎉 Payment successful! ${data.creditsAdded} Event Pass${
+                  data.creditsAdded > 1 ? "es" : ""
+                } added to your account.`
+              );
+              try {
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+              } catch (e) {}
+              window.history.replaceState({}, "", "/promoter");
+              loadDashboardData();
+            }
+          })
+          .catch(console.error);
+      } else if (payment === "cancelled") {
+        window.history.replaceState({}, "", "/promoter");
       }
     }
-    loadDashboardData();
   }, []);
 
   const handleSignOut = async () => {
@@ -135,11 +170,36 @@ export default function HostDashboard() {
 
         {/* Action Controls & User Profile */}
         <div className="flex flex-wrap items-center gap-2">
-          {hostInfo?.freeEventsRemaining > 0 && (
-            <div className="py-1.5 px-3 rounded-xl bg-purple-950/80 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 shadow-sm">
-              <Gift className="w-3.5 h-3.5 text-pink-400" />
-              <span>{hostInfo.freeEventsRemaining} Free Event Left</span>
-            </div>
+          {hostInfo && (
+            <>
+              {(hostInfo.freeEventsRemaining || 0) + (hostInfo.purchasedCredits || 0) > 0 ? (
+                <div className="py-1.5 px-3 rounded-xl bg-purple-950/80 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                  <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                  <span>
+                    {(hostInfo.freeEventsRemaining || 0) + (hostInfo.purchasedCredits || 0)}{" "}
+                    {(hostInfo.freeEventsRemaining || 0) + (hostInfo.purchasedCredits || 0) === 1
+                      ? "Pass Left"
+                      : "Passes Left"}
+                  </span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setPaywallOpen(true)}
+                  className="py-1.5 px-3 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/50 text-amber-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                  <span>0 Passes &bull; Buy Credits</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setPaywallOpen(true)}
+                className="py-2 px-3 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Buy Passes</span>
+              </button>
+            </>
           )}
 
           <a
@@ -150,7 +210,15 @@ export default function HostDashboard() {
           </a>
 
           <button
-            onClick={() => router.push("/promoter/new")}
+            onClick={() => {
+              const remaining =
+                (hostInfo?.freeEventsRemaining || 0) + (hostInfo?.purchasedCredits || 0);
+              if (remaining <= 0) {
+                setPaywallOpen(true);
+              } else {
+                router.push("/promoter/new");
+              }
+            }}
             className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 text-black font-extrabold text-xs shadow-lg shadow-cyan-500/20 active:scale-95 transition-all flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
@@ -171,6 +239,19 @@ export default function HostDashboard() {
           </button>
         </div>
       </div>
+
+      {/* Payment Success Banner */}
+      {paymentBanner && (
+        <div className="my-4 p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs sm:text-sm font-bold flex items-center justify-between shadow-lg">
+          <span>{paymentBanner}</span>
+          <button
+            onClick={() => setPaymentBanner(null)}
+            className="p-1 text-emerald-400 hover:text-white text-lg leading-none"
+          >
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Aggregate Metrics HUD */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-6">
@@ -357,6 +438,11 @@ export default function HostDashboard() {
           </div>
         )}
       </div>
+
+      <PaywallModal
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+      />
     </main>
   );
 }

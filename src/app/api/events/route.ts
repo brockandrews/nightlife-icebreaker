@@ -51,6 +51,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // Enforce paywall: Verify host has available event credits
+    const totalCredits = (host.freeEventsRemaining || 0) + (host.purchasedCredits || 0);
+    if (totalCredits <= 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "PAYWALL_REQUIRED",
+          error: "You have used your complimentary event. Please purchase event credits to create a new game.",
+        },
+        { status: 402 }
+      );
+    }
+
     const body = await request.json();
     const {
       name,
@@ -119,6 +132,19 @@ export async function POST(request: Request) {
         order: q.order,
       })),
     });
+
+    // Deduct 1 credit (prefer free credit first, then purchased credits)
+    if (host.freeEventsRemaining > 0) {
+      await prisma.host.update({
+        where: { id: host.id },
+        data: { freeEventsRemaining: { decrement: 1 } },
+      });
+    } else {
+      await prisma.host.update({
+        where: { id: host.id },
+        data: { purchasedCredits: { decrement: 1 } },
+      });
+    }
 
     return NextResponse.json({ success: true, event: newEvent });
   } catch (error: any) {

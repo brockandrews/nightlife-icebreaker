@@ -15,11 +15,29 @@ model Host {
   organization        String?
   role                String   @default("OWNER") // OWNER, MANAGER, STAFF
   freeEventsRemaining Int      @default(1)
+  purchasedCredits    Int      @default(0)
   stripeCustomerId    String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   events              Event[]
+  purchases           Purchase[]
+}
+
+model Purchase {
+  id              String   @id @default(cuid())
+  hostId          String
+  host            Host     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  stripeSessionId String   @unique
+  stripePaymentId String?
+  amountCents     Int
+  currency        String   @default("usd")
+  creditsAdded    Int
+  packType        String
+  status          String   @default("COMPLETED")
+  createdAt       DateTime @default(now())
+
+  @@index([hostId])
 }
 
 model Event {
