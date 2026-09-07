@@ -1,15 +1,39 @@
 import Stripe from "stripe";
 
-const stripeApiKey =
-  process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_for_build_time_only";
+export function getStripe(): Stripe {
+  const key =
+    process.env.STRIPE_SECRET_KEY ||
+    process.env.STRIPE_API_KEY ||
+    process.env.STRIPE_KEY ||
+    process.env.STRIPE_SECRET;
 
-export const stripe = new Stripe(stripeApiKey, {
-  apiVersion: "2025-02-24.acacia" as any,
-  typescript: true,
-  appInfo: {
-    name: "MixxSocial",
-    version: "1.0.0",
-    url: "https://mixxsocial.com",
+  if (!key || key.includes("placeholder")) {
+    throw new Error(
+      "STRIPE_SECRET_KEY is missing in Vercel environment variables. In Vercel, go to Settings > Environment Variables, ensure STRIPE_SECRET_KEY is added for Production, and redeploy."
+    );
+  }
+
+  return new Stripe(key, {
+    apiVersion: "2025-02-24.acacia" as any,
+    typescript: true,
+    appInfo: {
+      name: "MixxSocial",
+      version: "1.0.0",
+      url: "https://mixxsocial.com",
+    },
+  });
+}
+
+/**
+ * Lazy proxy to Stripe client.
+ * Safe for Next.js build-time static page collection and guarantees
+ * live environment variable resolution at runtime.
+ */
+export const stripe = new Proxy({} as Stripe, {
+  get(_target, prop) {
+    const instance = getStripe();
+    const value = (instance as any)[prop];
+    return typeof value === "function" ? value.bind(instance) : value;
   },
 });
 
