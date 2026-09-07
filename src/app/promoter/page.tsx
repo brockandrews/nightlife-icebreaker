@@ -100,6 +100,9 @@ export default function HostDashboard() {
                   data.creditsAdded > 1 ? "es" : ""
                 } added to your account.`
               );
+              if (data.host) {
+                setHostInfo((prev: any) => ({ ...prev, ...data.host }));
+              }
               try {
                 confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
               } catch (e) {}

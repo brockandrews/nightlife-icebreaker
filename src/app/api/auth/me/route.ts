@@ -62,6 +62,7 @@ export async function GET() {
         organization: host.organization,
         role: host.role,
         freeEventsRemaining: host.freeEventsRemaining,
+        purchasedCredits: host.purchasedCredits ?? 0,
         totalEventsCount: host._count.events,
       },
     });
