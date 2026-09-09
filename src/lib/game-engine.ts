@@ -401,28 +401,18 @@ export async function executeHandshakeEvaluation(
     }
   }
 
-  // If Player A has exactly 1 candidate, auto-claim it!
-  let autoClaimedA: any = null;
-  if (candidateSquaresA.length === 1) {
-    const claimRes = await claimSquareSelection(
-      playerA.id,
-      candidateSquaresA[0].id,
-      playerB.id,
-      playerB.displayName
-    );
-    autoClaimedA = claimRes.square;
+  // Pick exactly ONE random available candidate square for Player A (if any match)
+  const singleCandidateA: typeof candidateSquaresA = [];
+  if (candidateSquaresA.length > 0) {
+    const randomIndexA = Math.floor(Math.random() * candidateSquaresA.length);
+    singleCandidateA.push(candidateSquaresA[randomIndexA]);
   }
 
-  // If Player B has exactly 1 candidate, auto-claim it!
-  let autoClaimedB: any = null;
-  if (candidateSquaresB.length === 1) {
-    const claimRes = await claimSquareSelection(
-      playerB.id,
-      candidateSquaresB[0].id,
-      playerA.id,
-      playerA.displayName
-    );
-    autoClaimedB = claimRes.square;
+  // Pick exactly ONE random available candidate square for Player B (if any match)
+  const singleCandidateB: typeof candidateSquaresB = [];
+  if (candidateSquaresB.length > 0) {
+    const randomIndexB = Math.floor(Math.random() * candidateSquaresB.length);
+    singleCandidateB.push(candidateSquaresB[randomIndexB]);
   }
 
   // Create Connection record (pairKey ensures uniqueness per pair per event)
@@ -439,16 +429,16 @@ export async function executeHandshakeEvaluation(
       },
     },
     update: {
-      squaresSatisfiedA: autoClaimedA ? 1 : candidateSquaresA.length > 0 ? 1 : 0,
-      squaresSatisfiedB: autoClaimedB ? 1 : candidateSquaresB.length > 0 ? 1 : 0,
+      squaresSatisfiedA: singleCandidateA.length > 0 ? 1 : 0,
+      squaresSatisfiedB: singleCandidateB.length > 0 ? 1 : 0,
     },
     create: {
       eventId,
       playerAId: playerA.id,
       playerBId: playerB.id,
       pairKey,
-      squaresSatisfiedA: autoClaimedA ? 1 : candidateSquaresA.length > 0 ? 1 : 0,
-      squaresSatisfiedB: autoClaimedB ? 1 : candidateSquaresB.length > 0 ? 1 : 0,
+      squaresSatisfiedA: singleCandidateA.length > 0 ? 1 : 0,
+      squaresSatisfiedB: singleCandidateB.length > 0 ? 1 : 0,
       confirmedAt: now,
     },
   });
@@ -458,16 +448,16 @@ export async function executeHandshakeEvaluation(
     playerA: {
       id: playerA.id,
       name: playerA.displayName,
-      candidateSquares: candidateSquaresA,
-      autoClaimedSquare: autoClaimedA,
-      requiresSelection: candidateSquaresA.length > 1,
+      candidateSquares: singleCandidateA,
+      autoClaimedSquare: null,
+      requiresSelection: singleCandidateA.length > 0,
     },
     playerB: {
       id: playerB.id,
       name: playerB.displayName,
-      candidateSquares: candidateSquaresB,
-      autoClaimedSquare: autoClaimedB,
-      requiresSelection: candidateSquaresB.length > 1,
+      candidateSquares: singleCandidateB,
+      autoClaimedSquare: null,
+      requiresSelection: singleCandidateB.length > 0,
     },
   };
 }

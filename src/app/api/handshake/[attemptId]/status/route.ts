@@ -103,22 +103,9 @@ export async function GET(
         }
       }
 
-      if (candidateSquares.length === 1) {
-        // Auto-claim the single match
-        try {
-          const claimRes = await claimSquareSelection(
-            self.id,
-            candidateSquares[0].id,
-            partner.id,
-            partner.displayName
-          );
-          autoClaimedSquare = claimRes.square;
-          candidateSquares = [];
-          requiresSelection = false;
-        } catch (e) {
-          // If already claimed concurrently
-        }
-      } else if (candidateSquares.length > 1) {
+      if (candidateSquares.length > 0) {
+        const randomIndex = Math.floor(Math.random() * candidateSquares.length);
+        candidateSquares = [candidateSquares[randomIndex]];
         requiresSelection = true;
       }
     }

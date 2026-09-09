@@ -179,8 +179,8 @@ export default function GuestGamePage() {
         const payload = JSON.parse(e.data);
         setActiveHandshakeAttempt(null);
 
-        // Check if multiple squares match and selection is required!
-        if (payload.requiresSelection && payload.candidateSquares?.length > 1) {
+        // Present icebreaker match challenge modal
+        if (payload.requiresSelection && payload.candidateSquares?.length > 0) {
           setPickerData({
             partnerId: payload.partnerId,
             partnerName: payload.partnerName,
@@ -285,8 +285,8 @@ export default function GuestGamePage() {
           if (data.status === "CONFIRMED") {
             setActiveHandshakeAttempt(null);
 
-            // If 2+ squares match -> show strategic picker modal!
-            if (data.requiresSelection && data.candidateSquares?.length > 1) {
+            // Present icebreaker match challenge modal
+            if (data.requiresSelection && data.candidateSquares?.length > 0) {
               setPickerData({
                 partnerId: data.partnerId,
                 partnerName: data.partnerName,
@@ -387,8 +387,8 @@ export default function GuestGamePage() {
         const pId = data.partnerId;
         setActiveHandshakeAttempt(null);
 
-        // Check if multiple squares match and selection is required!
-        if (data.requiresSelection && data.candidateSquares?.length > 1) {
+        // Present icebreaker match challenge modal
+        if (data.requiresSelection && data.candidateSquares?.length > 0) {
           setPickerData({
             partnerId: pId,
             partnerName: pName,

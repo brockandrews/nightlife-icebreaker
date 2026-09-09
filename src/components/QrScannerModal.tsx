@@ -17,6 +17,7 @@ export function QrScannerModal({
   clearError,
 }: QrScannerModalProps) {
   const [pinCode, setPinCode] = useState("");
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const scannerRef = useRef<any>(null);
@@ -126,12 +127,15 @@ export function QrScannerModal({
           <input
             type="text"
             value={pinCode}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
             onChange={handlePinChange}
-            placeholder="e.g. K7M2"
+            placeholder={isInputFocused ? "" : "PIN"}
             maxLength={4}
             autoCapitalize="characters"
             autoCorrect="off"
-            className="w-full max-w-[200px] text-center text-3xl font-mono font-black uppercase tracking-widest py-3 px-4 bg-[#0B0E14] border-2 border-cyan-400 rounded-2xl text-cyan-300 placeholder:text-slate-700 focus:outline-none focus:ring-4 focus:ring-cyan-500/30 shadow-inner"
+            autoComplete="off"
+            className="w-full max-w-[200px] text-center text-3xl font-mono font-black uppercase tracking-widest py-3 px-4 bg-[#0B0E14] border-2 border-cyan-400 rounded-2xl text-cyan-300 placeholder:text-slate-600 placeholder:font-sans placeholder:text-base placeholder:tracking-normal placeholder:font-bold focus:placeholder-transparent focus:outline-none focus:ring-4 focus:ring-cyan-500/30 shadow-inner"
           />
         </div>
 
