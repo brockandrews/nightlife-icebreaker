@@ -62,6 +62,8 @@ model Event {
   completionMode   String              @default("AUTO_FILL") // AUTO_FILL, PROMPT_TO_REVEAL
   prizeDescription String              @default("VIP Drinks & Bottle Service Prize")
   doorCodeToken    String              @unique @default(cuid())
+  themePackId      String?
+  themePack        ThemePack?          @relation(fields: [themePackId], references: [id], onDelete: SetNull)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 
@@ -74,10 +76,35 @@ model Event {
   reports          Report[]
 
   @@index([hostId])
+  @@index([themePackId])
+}
+
+model ThemePack {
+  id              String      @id @default(cuid())
+  slug            String      @unique
+  name            String
+  description     String
+  targetAudience  String
+  tone            String      @default("playful") // playful, professional, warm
+  accentColor     String      @default("#06B6D4")
+  iconName        String      @default("Sparkles")
+  cardSizeDefault String      @default("5x5")
+  ownership       String      @default("SYSTEM") // SYSTEM, HOST
+  isDefault       Boolean     @default(false)
+  order           Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  questions       Question[]
+  events          Event[]
+
+  @@index([slug])
 }
 
 model Question {
   id                 String           @id @default(cuid())
+  themePackId        String?
+  themePack          ThemePack?       @relation(fields: [themePackId], references: [id], onDelete: SetNull)
   eventId            String?
   event              Event?           @relation(fields: [eventId], references: [id], onDelete: Cascade)
   category           String           @default("Social")
@@ -90,6 +117,9 @@ model Question {
   createdAt          DateTime         @default(now())
 
   surveyResponses    SurveyResponse[]
+
+  @@index([themePackId])
+  @@index([eventId])
 }
 
 model Player {

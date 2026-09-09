@@ -128,13 +128,20 @@ export async function generateBingoCard(
     return existingCard;
   }
 
-  // Fetch all questions and traits available for this event
-  const questions = await prisma.question.findMany({
-    where: {
-      OR: [{ eventId }, { eventId: null }],
-    },
+  // Fetch all questions and traits pinned to this event
+  let questions = await prisma.question.findMany({
+    where: { eventId },
     orderBy: { order: "asc" },
   });
+
+  if (questions.length === 0) {
+    questions = await prisma.question.findMany({
+      where: {
+        OR: [{ eventId }, { eventId: null }],
+      },
+      orderBy: { order: "asc" },
+    });
+  }
 
   // Extract all possible traits from question options
   const traitPool: TraitDefinition[] = [];

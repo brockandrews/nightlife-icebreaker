@@ -23,25 +23,46 @@ export async function GET(
 
     let questions = await prisma.question.findMany({
       where: {
-        OR: [{ eventId: event.id }, { eventId: null }],
+        eventId: event.id,
       },
       orderBy: { order: "asc" },
     });
 
     // Auto-seed questions if this event has none
     if (questions.length === 0) {
-      await prisma.question.createMany({
-        data: STANDARD_QUESTION_BANK.map((q) => ({
-          eventId: event.id,
-          category: q.category,
-          prompt: q.prompt,
-          options: q.options,
-          traitTemplate: q.traitTemplate,
-          conversationPrompt: q.conversationPrompt,
-          isCustom: false,
-          order: q.order,
-        })),
+      const pack = await prisma.themePack.findFirst({
+        where: event.themePackId ? { id: event.themePackId } : { slug: "nightlife" },
+        include: { questions: { where: { eventId: null } } },
       });
+
+      if (pack?.questions && pack.questions.length > 0) {
+        await prisma.question.createMany({
+          data: pack.questions.map((q) => ({
+            themePackId: pack.id,
+            eventId: event.id,
+            category: q.category,
+            prompt: q.prompt,
+            options: q.options,
+            traitTemplate: q.traitTemplate,
+            conversationPrompt: q.conversationPrompt,
+            isCustom: false,
+            order: q.order,
+          })),
+        });
+      } else {
+        await prisma.question.createMany({
+          data: STANDARD_QUESTION_BANK.map((q) => ({
+            eventId: event.id,
+            category: q.category,
+            prompt: q.prompt,
+            options: q.options,
+            traitTemplate: q.traitTemplate,
+            conversationPrompt: q.conversationPrompt,
+            isCustom: false,
+            order: q.order,
+          })),
+        });
+      }
 
       questions = await prisma.question.findMany({
         where: { eventId: event.id },

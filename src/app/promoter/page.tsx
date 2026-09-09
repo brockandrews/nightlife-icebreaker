@@ -358,6 +358,18 @@ export default function HostDashboard() {
                       <span className="text-xs font-mono font-bold text-cyan-300">
                         Door Code: {evt.doorCodeToken}
                       </span>
+                      {evt.themePack && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                          style={{
+                            backgroundColor: `${evt.themePack.accentColor || "#06B6D4"}15`,
+                            color: evt.themePack.accentColor || "#06B6D4",
+                            borderColor: `${evt.themePack.accentColor || "#06B6D4"}40`,
+                          }}
+                        >
+                          {evt.themePack.name}
+                        </span>
+                      )}
                     </div>
 
                     {/* Event Title */}

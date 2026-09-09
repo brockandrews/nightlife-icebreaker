@@ -21,6 +21,14 @@ export async function GET() {
         hostId: host.id,
       },
       include: {
+        themePack: {
+          select: {
+            slug: true,
+            name: true,
+            iconName: true,
+            accentColor: true,
+          },
+        },
         _count: {
           select: {
             players: true,
@@ -71,7 +79,7 @@ export async function POST(request: Request) {
       scheduledDate,
       startTime,
       endTime,
-      cardSize = "5x5",
+      cardSize,
       scoringModel = "MOST_CONNECTIONS",
       completionMode = "AUTO_FILL",
       prizeDescription = "VIP Bottle Service & Drinks",
@@ -80,7 +88,35 @@ export async function POST(request: Request) {
       sponsorLogoUrl,
       sponsorMessage,
       doorCodeToken,
+      themePackSlug,
+      themePackId,
     } = body;
+
+    // Resolve selected Theme Pack (fallback to nightlife)
+    const targetSlug = themePackSlug || "nightlife";
+    let themePack = await prisma.themePack.findFirst({
+      where: themePackId
+        ? { id: themePackId }
+        : { slug: targetSlug },
+      include: {
+        questions: {
+          where: { eventId: null },
+          orderBy: { order: "asc" },
+        },
+      },
+    });
+
+    if (!themePack) {
+      themePack = await prisma.themePack.findFirst({
+        where: { slug: "nightlife" },
+        include: {
+          questions: {
+            where: { eventId: null },
+            orderBy: { order: "asc" },
+          },
+        },
+      });
+    }
 
     const eventScheduledDate = scheduledDate
       ? new Date(scheduledDate)
@@ -99,9 +135,10 @@ export async function POST(request: Request) {
     const newEvent = await prisma.event.create({
       data: {
         hostId: host.id,
-        name: name || "MixxSocial Mixer & Game",
-        venueName: venueName || "Lounge & Club",
-        accentColor: accentColor || "#06B6D4",
+        themePackId: themePack?.id || null,
+        name: name || `${themePack?.name || "MixxSocial"} Game`,
+        venueName: venueName || "Venue Lounge",
+        accentColor: accentColor || themePack?.accentColor || "#06B6D4",
         logoUrl,
         sponsorLogoUrl,
         sponsorMessage,
@@ -110,7 +147,7 @@ export async function POST(request: Request) {
         endTime: eventEndTime,
         gameStartTime: eventScheduledDate,
         gameEndTime: eventEndTime,
-        cardSize,
+        cardSize: cardSize || themePack?.cardSizeDefault || "5x5",
         scoringModel,
         completionMode,
         prizeDescription,
@@ -119,19 +156,36 @@ export async function POST(request: Request) {
       },
     });
 
-    // Seed standard questions for the new event
-    await prisma.question.createMany({
-      data: STANDARD_QUESTION_BANK.map((q) => ({
-        eventId: newEvent.id,
-        category: q.category,
-        prompt: q.prompt,
-        options: q.options,
-        traitTemplate: q.traitTemplate,
-        conversationPrompt: q.conversationPrompt,
-        isCustom: false,
-        order: q.order,
-      })),
-    });
+    // Seed questions from the selected Theme Pack (isolated and pinned for this event)
+    if (themePack?.questions && themePack.questions.length > 0) {
+      await prisma.question.createMany({
+        data: themePack.questions.map((q) => ({
+          themePackId: themePack.id,
+          eventId: newEvent.id,
+          category: q.category,
+          prompt: q.prompt,
+          options: q.options,
+          traitTemplate: q.traitTemplate,
+          conversationPrompt: q.conversationPrompt,
+          isCustom: false,
+          order: q.order,
+        })),
+      });
+    } else {
+      // Fallback to STANDARD_QUESTION_BANK
+      await prisma.question.createMany({
+        data: STANDARD_QUESTION_BANK.map((q) => ({
+          eventId: newEvent.id,
+          category: q.category,
+          prompt: q.prompt,
+          options: q.options,
+          traitTemplate: q.traitTemplate,
+          conversationPrompt: q.conversationPrompt,
+          isCustom: false,
+          order: q.order,
+        })),
+      });
+    }
 
     // Deduct 1 credit (prefer free credit first, then purchased credits)
     if (host.freeEventsRemaining > 0) {
