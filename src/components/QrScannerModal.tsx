@@ -8,6 +8,8 @@ interface QrScannerModalProps {
   isLoading?: boolean;
   errorMessage?: string | null;
   clearError?: () => void;
+  pinCode?: string;
+  onPinChange?: (pin: string) => void;
 }
 
 export function QrScannerModal({
@@ -15,8 +17,12 @@ export function QrScannerModal({
   isLoading = false,
   errorMessage = null,
   clearError,
+  pinCode: controlledPin,
+  onPinChange: controlledOnPinChange,
 }: QrScannerModalProps) {
-  const [pinCode, setPinCode] = useState("");
+  const [internalPin, setInternalPin] = useState("");
+  const pinCode = controlledPin !== undefined ? controlledPin : internalPin;
+  const setPinCode = controlledOnPinChange !== undefined ? controlledOnPinChange : setInternalPin;
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);

@@ -63,8 +63,17 @@ export default function GuestGamePage() {
   } | null>(null);
 
   // Scanner & Handshake Loading State
+  const [scannerPin, setScannerPin] = useState("");
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  // Handler to close celebration modal and return to bingo card screen with cleared PIN
+  const handleCloseCelebration = useCallback(() => {
+    setCelebrationData(null);
+    setScannerPin("");
+    setScanError(null);
+    setActiveTab("card");
+  }, []);
 
   // Host Broadcast Announcement & Safety Modals
   const [broadcastMessage, setBroadcastMessage] = useState<string | null>(null);
@@ -198,6 +207,8 @@ export default function GuestGamePage() {
       try {
         const payload = JSON.parse(e.data);
         setActiveHandshakeAttempt(null);
+        setScannerPin("");
+        setScanError(null);
 
         // Present icebreaker match challenge modal
         if (payload.requiresSelection && payload.candidateSquares?.length > 0) {
@@ -312,6 +323,8 @@ export default function GuestGamePage() {
         if (data.success) {
           if (data.status === "CONFIRMED") {
             setActiveHandshakeAttempt(null);
+            setScannerPin("");
+            setScanError(null);
 
             // Present icebreaker match challenge modal
             if (data.requiresSelection && data.candidateSquares?.length > 0) {
@@ -378,6 +391,8 @@ export default function GuestGamePage() {
 
       const data = await res.json();
       if (data.success) {
+        setScannerPin("");
+        setScanError(null);
         // Switch to waiting state
         setActiveHandshakeAttempt({
           id: data.attemptId,
@@ -411,6 +426,8 @@ export default function GuestGamePage() {
       );
       const data = await res.json();
       if (data.success) {
+        setScannerPin("");
+        setScanError(null);
         const pName = activeHandshakeAttempt.partnerName;
         const pId = data.partnerId;
         setActiveHandshakeAttempt(null);
@@ -450,6 +467,8 @@ export default function GuestGamePage() {
 
   // 5. Dismiss Handshake
   const handleDismissHandshake = async () => {
+    setScannerPin("");
+    setScanError(null);
     if (!activeHandshakeAttempt?.id) {
       setActiveHandshakeAttempt(null);
       return;
@@ -483,6 +502,8 @@ export default function GuestGamePage() {
       if (data.success) {
         const pName = pickerData.partnerName;
         setPickerData(null);
+        setScannerPin("");
+        setScanError(null);
         setCelebrationData({
           partnerName: pName,
           matchedSquares: [data.square],
@@ -583,6 +604,8 @@ export default function GuestGamePage() {
               isLoading={scanLoading}
               errorMessage={scanError}
               clearError={() => setScanError(null)}
+              pinCode={scannerPin}
+              onPinChange={setScannerPin}
             />
           </div>
         )}
@@ -631,7 +654,7 @@ export default function GuestGamePage() {
           partnerName={celebrationData.partnerName}
           matchedSquares={celebrationData.matchedSquares}
           completionMode={celebrationData.completionMode}
-          onClose={() => setCelebrationData(null)}
+          onClose={handleCloseCelebration}
         />
       )}
 
@@ -646,7 +669,10 @@ export default function GuestGamePage() {
       {/* Fixed Bottom Navigation */}
       <Navigation
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setScanError(null);
+          setActiveTab(tab);
+        }}
         connectionsCount={connections.length}
         hasPendingHandshake={Boolean(
           activeHandshakeAttempt && activeHandshakeAttempt.mode === "INCOMING"
