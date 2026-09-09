@@ -14,13 +14,53 @@ export interface TraitDefinition {
 export function formatPromptText(template: string, value: string): string {
   if (template === "{value}") {
     const v = value.trim();
-    if (v.toLowerCase().startsWith("lived") || v.toLowerCase().startsWith("backpacked") || v.toLowerCase().startsWith("taken") || v.toLowerCase().startsWith("island")) {
-      return `Find someone who has ${v.toLowerCase()}`;
+    const low = v.toLowerCase();
+
+    // Travel
+    if (low.startsWith("lived") || low.startsWith("backpacked") || low.startsWith("taken") || low.startsWith("island")) {
+      return `Find someone who has ${low}`;
     }
-    if (v.toLowerCase().startsWith("born") || v.toLowerCase().startsWith("moved") || v.toLowerCase().startsWith("visiting")) {
-      return `Find someone who is ${v.toLowerCase()}`;
+    if (low.startsWith("prefers")) {
+      return `Find someone who ${low}`;
     }
-    return `Find someone who ${v.toLowerCase()}`;
+
+    // Roots
+    if (low.startsWith("born") || low.startsWith("visiting")) {
+      return `Find someone who is ${low}`;
+    }
+    if (low.startsWith("recent transplant")) {
+      return `Find someone who is a recent transplant`;
+    }
+    if (low.startsWith("moved")) {
+      return `Find someone who ${low}`;
+    }
+
+    // Vibe
+    if (low.startsWith("center")) {
+      return `Find someone who loves the center of the dance floor`;
+    }
+    if (low.startsWith("lounge")) {
+      return `Find someone who loves the lounge corner & deep talks`;
+    }
+    if (low.startsWith("floating")) {
+      return `Find someone who is floating between all groups`;
+    }
+    if (low.startsWith("checking")) {
+      return `Find someone who is checking out the DJ gear`;
+    }
+
+    // Quirks
+    if (low.startsWith("can dj") || low.startsWith("cooks")) {
+      return `Find someone who ${low}`;
+    }
+    if (low.startsWith("fitness")) {
+      return `Find someone who is a ${low}`;
+    }
+    if (low.startsWith("astrology") || low.startsWith("insane")) {
+      return `Find someone who is an ${low}`;
+    }
+
+    return `Find someone who ${low}`;
   }
 
   const raw = template.replace("{value}", value).trim();

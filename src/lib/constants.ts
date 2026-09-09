@@ -46,6 +46,7 @@ export const STANDARD_QUESTION_BANK = [
     options: JSON.stringify([
       "Tequila or Mezcal",
       "Espresso Martini or Vodka",
+      "Whiskey or Dark Liquor",
       "Craft Beer or Cider",
       "Wine or Champagne",
       "Mocktails or Red Bull",
@@ -59,7 +60,8 @@ export const STANDARD_QUESTION_BANK = [
     prompt: "Are you a local or from somewhere far away?",
     options: JSON.stringify([
       "Born & raised in this city",
-      "Moved here within 2 years",
+      "Recent Transplant",
+      "Moved here years ago",
       "Visiting for the weekend",
       "Moved from another country",
     ]),
@@ -90,8 +92,8 @@ export const STANDARD_QUESTION_BANK = [
       "Floating between all groups",
       "Checking out the DJ gear",
     ]),
-    traitTemplate: "Vibe: {value}",
-    conversationPrompt: "Ask them how long they plan to stay out tonight!",
+    traitTemplate: "{value}",
+    conversationPrompt: "Ask them what song would get them sprinting to the dance floor!",
     order: 7,
   },
   {
