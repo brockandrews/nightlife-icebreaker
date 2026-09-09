@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import confetti from "canvas-confetti";
-import { Sparkles, Check, MessageSquare, PartyPopper, ArrowRight } from "lucide-react";
+import { Check, PartyPopper, ArrowRight } from "lucide-react";
 
 interface MatchedSquare {
   id: string;
@@ -65,20 +65,13 @@ export function MatchCelebrationModal({
                   key={sq.id}
                   className="p-3 bg-[#0E1420] border border-slate-700/80 rounded-xl"
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-cyan-400 text-black flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="w-3 h-3 stroke-[3]" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-cyan-400 text-black flex items-center justify-center shrink-0 shadow-sm shadow-cyan-400/30">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white leading-snug">
-                        "{sq.conversationPrompt ? sq.conversationPrompt.replace(/^["']|["']$/g, "") : sq.promptText}"
-                      </p>
-                      {sq.conversationPrompt && (
-                        <p className="text-xs text-slate-400 font-medium mt-1 leading-relaxed">
-                          {sq.promptText}
-                        </p>
-                      )}
-                    </div>
+                    <p className="text-sm font-bold text-white leading-snug">
+                      {sq.promptText}
+                    </p>
                   </div>
                 </div>
               ))}
