@@ -37,7 +37,7 @@ export const STANDARD_QUESTION_BANK = [
       "3+ languages polyglot",
     ]),
     traitTemplate: "Speaks {value}",
-    conversationPrompt: "Ask them to teach you how to say 'Cheers!' in another language!",
+    conversationPrompt: "Ask them what country they'd move to tomorrow if they could instantly speak the language!",
     order: 3,
   },
   {
@@ -110,3 +110,9 @@ export const STANDARD_QUESTION_BANK = [
     order: 8,
   },
 ];
+
+export const OPTION_CONVERSATION_PROMPTS: Record<string, string> = {
+  "1 language (English)": "Ask them what country they'd move to tomorrow if they could instantly speak the language!",
+  "2 languages bilingual": "Ask them what other language they speak and how to say 'Cheers!'",
+  "3+ languages polyglot": "Ask them which languages they speak and to teach you how to say 'Cheers!' in their favorite one!",
+};

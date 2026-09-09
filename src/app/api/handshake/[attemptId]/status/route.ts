@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { claimSquareSelection } from "@/lib/game-engine";
+import { claimSquareSelection, resolveConversationPrompt } from "@/lib/game-engine";
 
 export async function GET(
   request: Request,
@@ -98,7 +98,12 @@ export async function GET(
             id: sq.id,
             position: sq.position,
             promptText: sq.promptText,
-            conversationPrompt: sq.conversationPrompt,
+            conversationPrompt: resolveConversationPrompt(
+              null,
+              sq.traitId,
+              sq.promptText,
+              sq.conversationPrompt
+            ),
           });
         }
       }

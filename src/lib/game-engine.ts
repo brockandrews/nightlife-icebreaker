@@ -71,6 +71,43 @@ export function formatPromptText(template: string, value: string): string {
 }
 
 /**
+ * Resolves or repairs a suggested conversation icebreaker prompt
+ * for a square, handling option-specific questions (e.g. 1 language vs bilingual vs polyglot).
+ */
+export function resolveConversationPrompt(
+  category?: string | null,
+  optionOrTraitId?: string | null,
+  promptText?: string | null,
+  existingPrompt?: string | null
+): string {
+  const combined = `${category || ""} ${optionOrTraitId || ""} ${promptText || ""}`.toLowerCase();
+
+  // Language square option-specific questions
+  if (combined.includes("language") || combined.includes("polyglot") || combined.includes("bilingual")) {
+    if (combined.includes("1 language") || combined.includes("english")) {
+      return "Ask them what country they'd move to tomorrow if they could instantly speak the language!";
+    }
+    if (combined.includes("2 languages") || combined.includes("bilingual")) {
+      return "Ask them what other language they speak and how to say 'Cheers!'";
+    }
+    if (combined.includes("3+") || combined.includes("polyglot")) {
+      return "Ask them which languages they speak and to teach you how to say 'Cheers!' in their favorite one!";
+    }
+  }
+
+  // Travel square specifics
+  if (combined.includes("close to home")) {
+    return "Ask them what their dream vacation would be if money was no object!";
+  }
+
+  if (existingPrompt && existingPrompt.trim()) {
+    return existingPrompt;
+  }
+
+  return "Say hi and ask what brought them here tonight!";
+}
+
+/**
  * Generates a balanced, randomized bingo card for a newly registered player.
  * @param playerId The player's ID
  * @param eventId The event's ID
@@ -111,9 +148,12 @@ export async function generateBingoCard(
 
     for (const opt of options) {
       const promptText = formatPromptText(q.traitTemplate, opt);
-      const conversationPrompt = q.conversationPrompt
-        ? q.conversationPrompt.replace("{value}", opt)
-        : `Ask them about their experience with ${opt}!`;
+      const conversationPrompt = resolveConversationPrompt(
+        q.category,
+        opt,
+        promptText,
+        q.conversationPrompt ? q.conversationPrompt.replace("{value}", opt) : null
+      );
 
       traitPool.push({
         id: `${q.id}::${opt}`,
@@ -409,7 +449,12 @@ export async function executeHandshakeEvaluation(
           id: sq.id,
           position: sq.position,
           promptText: sq.promptText,
-          conversationPrompt: sq.conversationPrompt,
+          conversationPrompt: resolveConversationPrompt(
+            null,
+            sq.traitId,
+            sq.promptText,
+            sq.conversationPrompt
+          ),
         });
       }
     }
@@ -435,7 +480,12 @@ export async function executeHandshakeEvaluation(
           id: sq.id,
           position: sq.position,
           promptText: sq.promptText,
-          conversationPrompt: sq.conversationPrompt,
+          conversationPrompt: resolveConversationPrompt(
+            null,
+            sq.traitId,
+            sq.promptText,
+            sq.conversationPrompt
+          ),
         });
       }
     }

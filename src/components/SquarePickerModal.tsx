@@ -40,9 +40,16 @@ export function SquarePickerModal({
 
   if (!chosenSquare) return null;
 
-  const displayQuestion = chosenSquare.conversationPrompt
+  const rawQuestion = chosenSquare.conversationPrompt
     ? chosenSquare.conversationPrompt.replace(/^["']|["']$/g, "")
     : chosenSquare.promptText;
+
+  // Immediate client fallback for 1-language square
+  const displayQuestion =
+    chosenSquare.promptText.toLowerCase().includes("1 language") &&
+    rawQuestion.toLowerCase().includes("cheers")
+      ? "Ask them what country they'd move to tomorrow if they could instantly speak the language!"
+      : rawQuestion;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fadeIn">

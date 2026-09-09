@@ -40,7 +40,7 @@ const STANDARD_QUESTION_BANK = [
       "3+ languages polyglot",
     ]),
     traitTemplate: "Speaks {value}",
-    conversationPrompt: "Ask them to teach you how to say 'Cheers!' in another language!",
+    conversationPrompt: "Ask them what country they'd move to tomorrow if they could instantly speak the language!",
     order: 3,
   },
   {
