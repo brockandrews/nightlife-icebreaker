@@ -68,6 +68,7 @@ export default function GuestGamePage() {
 
   // Host Broadcast Announcement & Safety Modals
   const [broadcastMessage, setBroadcastMessage] = useState<string | null>(null);
+  const [currentAnnouncementId, setCurrentAnnouncementId] = useState<string | null>(null);
   const [isSafetyOpen, setIsSafetyOpen] = useState(false);
 
   // Time remaining on game clock
@@ -87,6 +88,15 @@ export default function GuestGamePage() {
         setEventData(data.event);
         setCard(data.card);
         setConnections(data.connections || []);
+
+        // Sync latest room announcement if not dismissed
+        if (data.latestAnnouncement?.id) {
+          const dismissedKey = `dismissed_announcement_${data.latestAnnouncement.id}`;
+          if (typeof window !== "undefined" && !localStorage.getItem(dismissedKey)) {
+            setBroadcastMessage(data.latestAnnouncement.message);
+            setCurrentAnnouncementId(data.latestAnnouncement.id);
+          }
+        }
 
         if (data.pendingIncomingAttempt) {
           setActiveHandshakeAttempt({
@@ -112,6 +122,16 @@ export default function GuestGamePage() {
       const data = await res.json();
       if (data.success) {
         setLeaderboard(data.leaderboard || []);
+
+        // Sync latest room announcement if not dismissed
+        if (data.latestAnnouncement?.id) {
+          const dismissedKey = `dismissed_announcement_${data.latestAnnouncement.id}`;
+          if (typeof window !== "undefined" && !localStorage.getItem(dismissedKey)) {
+            setBroadcastMessage(data.latestAnnouncement.message);
+            setCurrentAnnouncementId(data.latestAnnouncement.id);
+          }
+        }
+
         if (data.event?.gameEndTime) {
           const diff = Math.max(
             0,
@@ -240,7 +260,15 @@ export default function GuestGamePage() {
       eventSse.addEventListener("BROADCAST_ANNOUNCEMENT", (e: any) => {
         try {
           const payload = JSON.parse(e.data);
-          setBroadcastMessage(payload.message);
+          if (payload?.id) {
+            const dismissedKey = `dismissed_announcement_${payload.id}`;
+            if (typeof window !== "undefined" && !localStorage.getItem(dismissedKey)) {
+              setBroadcastMessage(payload.message);
+              setCurrentAnnouncementId(payload.id);
+            }
+          } else if (payload?.message) {
+            setBroadcastMessage(payload.message);
+          }
         } catch (err) {}
       });
 
@@ -486,7 +514,15 @@ export default function GuestGamePage() {
       {/* Top Host Broadcast Banner */}
       <BroadcastBanner
         message={broadcastMessage}
-        onDismiss={() => setBroadcastMessage(null)}
+        onDismiss={() => {
+          if (currentAnnouncementId && typeof window !== "undefined") {
+            localStorage.setItem(
+              `dismissed_announcement_${currentAnnouncementId}`,
+              "true"
+            );
+          }
+          setBroadcastMessage(null);
+        }}
       />
 
       {/* Top Header Bar */}

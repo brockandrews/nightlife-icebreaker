@@ -12,6 +12,7 @@ import {
   Flame,
   Star,
   Users,
+  Megaphone,
 } from "lucide-react";
 
 export default function ProjectorBigScreenView() {
@@ -24,6 +25,7 @@ export default function ProjectorBigScreenView() {
   const [hudStats, setHudStats] = useState<any>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [activeAnnouncement, setActiveAnnouncement] = useState<string | null>(null);
 
   const fetchLiveState = useCallback(async () => {
     try {
@@ -34,6 +36,10 @@ export default function ProjectorBigScreenView() {
         setLeaderboard(data.leaderboard || []);
         setRecentConnections(data.recentConnections || []);
         setHudStats(data.hud);
+
+        if (data.latestAnnouncement?.message) {
+          setActiveAnnouncement(data.latestAnnouncement.message);
+        }
 
         if (data.event?.gameEndTime) {
           const diff = Math.max(
@@ -69,6 +75,12 @@ export default function ProjectorBigScreenView() {
     sse.addEventListener("LEADERBOARD_UPDATE", () => fetchLiveState());
     sse.addEventListener("PLAYER_JOINED", () => fetchLiveState());
     sse.addEventListener("GAME_STATE_UPDATE", () => fetchLiveState());
+    sse.addEventListener("BROADCAST_ANNOUNCEMENT", (e: any) => {
+      try {
+        const p = JSON.parse(e.data);
+        if (p.message) setActiveAnnouncement(p.message);
+      } catch (err) {}
+    });
 
     const interval = setInterval(fetchLiveState, 4000);
     const clockInterval = setInterval(() => {
@@ -132,6 +144,28 @@ export default function ProjectorBigScreenView() {
           </div>
         </div>
       </header>
+
+      {/* Live Host Announcement Banner */}
+      {activeAnnouncement && (
+        <div className="mt-4 p-4 bg-gradient-to-r from-purple-900/90 via-[#1e1035]/95 to-purple-900/90 border-2 border-purple-400 rounded-2xl shadow-2xl shadow-purple-500/30 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-500 to-pink-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/50">
+              <Megaphone className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-purple-300 block">
+                HOST ANNOUNCEMENT
+              </span>
+              <p className="text-lg font-black text-white tracking-wide">
+                {activeAnnouncement}
+              </p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-purple-500/30 border border-purple-300 text-purple-200 text-xs font-black uppercase rounded-full tracking-wider animate-pulse shrink-0">
+            ROOM BROADCAST
+          </span>
+        </div>
+      )}
 
       {/* Main Grid: Left is Big Leaderboard Podium, Right is Door QR & Live Ticker */}
       <div className="grid grid-cols-3 gap-8 my-auto py-6">

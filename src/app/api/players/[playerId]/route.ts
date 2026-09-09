@@ -82,6 +82,16 @@ export async function GET(
         new Date(b.confirmedAt).getTime() - new Date(a.confirmedAt).getTime()
     );
 
+    // Fetch latest active announcement for this event (within last 30 minutes)
+    const recentThreshold = new Date(Date.now() - 30 * 60 * 1000);
+    const latestAnnouncement = await prisma.announcement.findFirst({
+      where: {
+        eventId: player.eventId,
+        createdAt: { gte: recentThreshold },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
     return NextResponse.json({
       success: true,
       player: {
@@ -116,6 +126,13 @@ export async function GET(
                 (pendingIncomingAttempt.expiresAt.getTime() - Date.now()) / 1000
               )
             ),
+          }
+        : null,
+      latestAnnouncement: latestAnnouncement
+        ? {
+            id: latestAnnouncement.id,
+            message: latestAnnouncement.message,
+            createdAt: latestAnnouncement.createdAt.toISOString(),
           }
         : null,
     });
