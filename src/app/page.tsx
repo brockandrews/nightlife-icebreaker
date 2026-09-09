@@ -14,7 +14,8 @@ import {
 
 export default function Home() {
   const router = useRouter();
-  const [doorCode, setDoorCode] = useState("PILOT-2026");
+  const [doorCode, setDoorCode] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,10 +85,15 @@ export default function Home() {
               <input
                 type="text"
                 value={doorCode}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 onChange={(e) => setDoorCode(e.target.value.toUpperCase())}
-                placeholder="e.g. PILOT-2026"
+                placeholder={isFocused ? "" : "EVENT CODE"}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                autoComplete="off"
                 required
-                className="w-full py-3.5 px-4 bg-[#0B0E14] border border-slate-700 focus:border-cyan-400 rounded-2xl text-center text-xl font-mono font-black text-cyan-300 uppercase tracking-wider focus:outline-none focus:ring-4 focus:ring-cyan-500/20 shadow-inner"
+                className="w-full py-3.5 px-4 bg-[#0B0E14] border border-slate-700 focus:border-cyan-400 rounded-2xl text-center text-xl font-mono font-black text-cyan-300 uppercase tracking-wider placeholder:normal-case placeholder:font-sans placeholder:text-base placeholder:tracking-normal placeholder:font-bold placeholder:text-slate-600 focus:placeholder-transparent focus:outline-none focus:ring-4 focus:ring-cyan-500/20 shadow-inner"
               />
             </div>
           </div>

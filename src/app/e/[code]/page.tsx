@@ -171,7 +171,7 @@ export default function EventCheckInPage() {
             placeholder="e.g. Alex"
             maxLength={25}
             required
-            className="w-full py-3 px-4 bg-[#0B0E14] border border-slate-700 focus:border-cyan-400 rounded-xl text-white font-semibold text-base focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+            className="w-full py-3 px-4 bg-[#0B0E14] border border-slate-700 focus:border-cyan-400 rounded-xl text-white font-semibold text-base placeholder:text-slate-600 focus:placeholder-transparent focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
           />
           <span className="text-[10px] text-slate-400 mt-0.5 block">
             Only your nickname will be visible to other players.
