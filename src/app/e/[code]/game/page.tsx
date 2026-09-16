@@ -521,6 +521,39 @@ export default function GuestGamePage() {
     }
   };
 
+  // 7. Handle Swapping an Unfillable Square (PRD §5.7)
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [swapNotification, setSwapNotification] = useState<string | null>(null);
+
+  const handleSwapSquare = async (sq: any) => {
+    if (!player?.id) return;
+    setIsSwapping(true);
+    try {
+      const res = await fetch("/api/cards/swap-square", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId: player.id,
+          squareId: sq.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSwapNotification(
+          data.message || `Square swapped to: "${data.square?.promptText}"`
+        );
+        setTimeout(() => setSwapNotification(null), 4000);
+        await refreshPlayerData(player.id);
+      } else {
+        setScanError(data.error || "Failed to swap square");
+      }
+    } catch (e: any) {
+      setScanError(e.message || "Failed to swap square");
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
   if (loading || !player) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center p-5 text-center">
@@ -577,6 +610,19 @@ export default function GuestGamePage() {
         </button>
       </header>
 
+      {/* Swap Notification Toast */}
+      {swapNotification && (
+        <div className="w-full mb-3 p-3 bg-purple-950/90 border border-purple-500/80 rounded-2xl text-xs text-purple-200 font-bold flex items-center justify-between shadow-lg shadow-purple-950/50 animate-fadeIn">
+          <span>✨ {swapNotification}</span>
+          <button
+            onClick={() => setSwapNotification(null)}
+            className="text-purple-400 hover:text-white px-1.5 py-0.5"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main Tab Content */}
       <div className="flex-1 flex flex-col items-center justify-center w-full">
         {activeTab === "card" && (
@@ -584,6 +630,8 @@ export default function GuestGamePage() {
             <BingoCard
               card={card}
               cardSize={eventData?.cardSize || "5x5"}
+              onSwapSquare={handleSwapSquare}
+              isSwapping={isSwapping}
             />
           </div>
         )}

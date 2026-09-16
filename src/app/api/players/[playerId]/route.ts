@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkCardWinCondition } from "@/lib/game-engine";
 
 export async function GET(
   request: Request,
@@ -92,6 +93,53 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
+    // Enrich card with win progression and unfillable trait metrics
+    let enrichedCard = null;
+    if (player.card) {
+      const winStats = checkCardWinCondition(
+        player.card.squares,
+        player.event.cardSize
+      );
+
+      const [surveyResponses, totalPlayers] = await Promise.all([
+        prisma.surveyResponse.findMany({
+          where: { player: { eventId: player.eventId } },
+          select: { questionId: true, selectedOption: true },
+        }),
+        prisma.player.count({ where: { eventId: player.eventId } }),
+      ]);
+
+      const traitHolders = new Map<string, number>();
+      for (const r of surveyResponses) {
+        const key = `${r.questionId}::${r.selectedOption}`;
+        traitHolders.set(key, (traitHolders.get(key) || 0) + 1);
+      }
+
+      const nearLinePositions = new Set(winStats.nearLineSquares);
+
+      const enrichedSquares = player.card.squares.map((sq) => {
+        const holders = traitHolders.get(sq.traitId) || 0;
+        const isUnfillable =
+          !sq.isFreeSpace &&
+          !sq.isCompleted &&
+          holders === 0 &&
+          totalPlayers >= 5;
+
+        return {
+          ...sq,
+          holdersCount: holders,
+          isUnfillable,
+          isNearLine: nearLinePositions.has(sq.position),
+        };
+      });
+
+      enrichedCard = {
+        ...player.card,
+        squares: enrichedSquares,
+        winStats,
+      };
+    }
+
     return NextResponse.json({
       success: true,
       player: {
@@ -113,7 +161,7 @@ export async function GET(
         prizeDescription: player.event.prizeDescription,
         gameEndTime: player.event.gameEndTime,
       },
-      card: player.card,
+      card: enrichedCard,
       connections,
       pendingIncomingAttempt: pendingIncomingAttempt
         ? {

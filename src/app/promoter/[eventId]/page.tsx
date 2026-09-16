@@ -19,7 +19,9 @@ import {
   RefreshCw,
   Sparkles,
   ArrowLeft,
+  Flame,
 } from "lucide-react";
+import { TraitHeatmap } from "@/components/TraitHeatmap";
 
 export default function PromoterLiveConsole() {
   const params = useParams();
@@ -29,6 +31,7 @@ export default function PromoterLiveConsole() {
   const [eventData, setEventData] = useState<any>(null);
   const [hudStats, setHudStats] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [traitHeat, setTraitHeat] = useState<any[]>([]);
   const [recentConnections, setRecentConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,6 +51,7 @@ export default function PromoterLiveConsole() {
         setEventData(data.event);
         setHudStats(data.hud);
         setLeaderboard(data.leaderboard || []);
+        setTraitHeat(data.traitHeat || []);
         setRecentConnections(data.recentConnections || []);
       }
     } catch (e) {
@@ -357,6 +361,26 @@ export default function PromoterLiveConsole() {
                 ))
               )}
             </div>
+          </div>
+
+          {/* Room Trait Heatmap & Category Pulse (PRD §6.5) */}
+          <div className="p-5 bg-[#151C2C] border border-slate-800 rounded-3xl shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-400 fill-amber-400" />
+                <h2 className="text-base font-black text-white">
+                  Room Trait Heatmap & Mic Sparks
+                </h2>
+              </div>
+              <span className="text-xs text-slate-400 font-medium">
+                Live Attendee Distribution
+              </span>
+            </div>
+
+            <TraitHeatmap
+              categories={traitHeat}
+              totalPlayers={hudStats?.totalPlayers || 0}
+            />
           </div>
         </div>
 

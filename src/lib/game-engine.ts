@@ -108,7 +108,37 @@ export function resolveConversationPrompt(
 }
 
 /**
- * Generates a balanced, randomized bingo card for a newly registered player.
+ * Template matrices mapping non-free square positions to balanced category indices (0..7).
+ * Mathematically guaranteed:
+ * - 5x5: exactly 3 squares per category (24 squares total), 0 category collisions on any row or col.
+ * - 4x4: exactly 2 squares per category (16 squares total), 0 category collisions on any row or col.
+ */
+const BALANCED_5X5_CATEGORIES = [
+  // Row 0 (pos 0-4)
+  0, 3, 6, 1, 4,
+  // Row 1 (pos 5-9)
+  7, 2, 5, 0, 3,
+  // Row 2 (pos 10-11, [12 FREE], 13-14)
+  6, 1, /* FREE SPACE */ 4, 7,
+  // Row 3 (pos 15-19)
+  2, 5, 0, 3, 6,
+  // Row 4 (pos 20-24)
+  1, 4, 7, 2, 5,
+];
+
+const BALANCED_4X4_CATEGORIES = [
+  // Row 0 (pos 0-3)
+  0, 1, 2, 3,
+  // Row 1 (pos 4-7)
+  4, 5, 6, 7,
+  // Row 2 (pos 8-11)
+  3, 2, 1, 0,
+  // Row 3 (pos 12-15)
+  5, 4, 7, 6,
+];
+
+/**
+ * Generates a balanced, multi-category, pool-aware bingo card for a newly registered player.
  * @param playerId The player's ID
  * @param eventId The event's ID
  * @param cardSize "5x5" (25 squares, center free) or "4x4" (16 squares)
@@ -143,9 +173,33 @@ export async function generateBingoCard(
     });
   }
 
-  // Extract all possible traits from question options
-  const traitPool: TraitDefinition[] = [];
-  for (const q of questions) {
+  // Fetch attendee survey responses for pool-aware feasibility weighting (PRD §5.7)
+  const attendeeResponses = await prisma.surveyResponse.findMany({
+    where: { player: { eventId } },
+    select: { questionId: true, selectedOption: true },
+  });
+
+  // Count active holders in the room per trait
+  const roomTraitCounts = new Map<string, number>();
+  for (const r of attendeeResponses) {
+    const key = `${r.questionId}::${r.selectedOption}`;
+    roomTraitCounts.set(key, (roomTraitCounts.get(key) || 0) + 1);
+  }
+
+  const is5x5 = cardSize === "5x5";
+  const totalSquares = is5x5 ? 25 : 16;
+  const freePosition = is5x5 ? 12 : -1;
+  const traitsPerCategory = is5x5 ? 3 : 2;
+
+  // Permute questions so each player receives a unique mapping of categories
+  const permutedQuestions = shuffleArray([...questions]);
+
+  // For each question/category, pick exactly `traitsPerCategory` distinct traits,
+  // prioritizing options that active attendees in the room actually hold (pool awareness)
+  const categoryTraitBuckets: Map<number, TraitDefinition[]> = new Map();
+
+  for (let qIdx = 0; qIdx < permutedQuestions.length; qIdx++) {
+    const q = permutedQuestions[qIdx];
     let options: string[] = [];
     try {
       options = JSON.parse(q.options);
@@ -153,7 +207,48 @@ export async function generateBingoCard(
       options = [];
     }
 
-    for (const opt of options) {
+    // Separate options into Active (held by >= 1 attendee) and Others (0 holders yet)
+    const activeOptions = options.filter(
+      (opt) => (roomTraitCounts.get(`${q.id}::${opt}`) || 0) > 0
+    );
+    const otherOptions = options.filter(
+      (opt) => (roomTraitCounts.get(`${q.id}::${opt}`) || 0) === 0
+    );
+
+    const shuffledActive = shuffleArray(activeOptions);
+    const shuffledOthers = shuffleArray(otherOptions);
+
+    // Pick distinct options for this category: blend active options with others
+    const selectedOptions: string[] = [];
+
+    // Prioritize at least 1-2 active traits if available in the room
+    while (
+      selectedOptions.length < traitsPerCategory &&
+      shuffledActive.length > 0
+    ) {
+      selectedOptions.push(shuffledActive.pop()!);
+    }
+
+    // Fill remaining slots with other options
+    while (
+      selectedOptions.length < traitsPerCategory &&
+      shuffledOthers.length > 0
+    ) {
+      selectedOptions.push(shuffledOthers.pop()!);
+    }
+
+    // If options were fewer than required, fallback to any available option
+    if (selectedOptions.length < traitsPerCategory) {
+      for (const opt of options) {
+        if (!selectedOptions.includes(opt)) {
+          selectedOptions.push(opt);
+          if (selectedOptions.length >= traitsPerCategory) break;
+        }
+      }
+    }
+
+    // Build TraitDefinition objects for selected options
+    const traits: TraitDefinition[] = selectedOptions.map((opt) => {
       const promptText = formatPromptText(q.traitTemplate, opt);
       const conversationPrompt = resolveConversationPrompt(
         q.category,
@@ -162,20 +257,16 @@ export async function generateBingoCard(
         q.conversationPrompt ? q.conversationPrompt.replace("{value}", opt) : null
       );
 
-      traitPool.push({
+      return {
         id: `${q.id}::${opt}`,
         category: q.category,
         promptText,
         conversationPrompt,
-      });
-    }
+      };
+    });
+
+    categoryTraitBuckets.set(qIdx, traits);
   }
-
-  // Shuffle the trait pool
-  const shuffledTraits = shuffleArray(traitPool);
-
-  const totalSquares = cardSize === "4x4" ? 16 : 25;
-  const freePosition = cardSize === "5x5" ? 12 : -1; // Center of 5x5 is index 12
 
   // Create the Card record
   const card = await prisma.card.create({
@@ -186,9 +277,9 @@ export async function generateBingoCard(
     },
   });
 
-  // Generate squares
-  let traitIndex = 0;
+  // Assign squares using the balanced category template matrices
   const squareCreates = [];
+  let nonFreeIndex = 0;
 
   for (let pos = 0; pos < totalSquares; pos++) {
     if (pos === freePosition) {
@@ -203,8 +294,19 @@ export async function generateBingoCard(
         completedAt: new Date(),
       });
     } else {
-      const trait = shuffledTraits[traitIndex % shuffledTraits.length];
-      traitIndex++;
+      // Determine category index for this position
+      let categoryIndex = 0;
+      if (is5x5) {
+        const templateCat = BALANCED_5X5_CATEGORIES[nonFreeIndex % BALANCED_5X5_CATEGORIES.length];
+        categoryIndex = templateCat % permutedQuestions.length;
+      } else {
+        const templateCat = BALANCED_4X4_CATEGORIES[pos % BALANCED_4X4_CATEGORIES.length];
+        categoryIndex = templateCat % permutedQuestions.length;
+      }
+
+      // Pop a trait from this category bucket
+      const bucket = categoryTraitBuckets.get(categoryIndex) || [];
+      const trait = bucket.pop();
 
       squareCreates.push({
         cardId: card.id,
@@ -215,6 +317,8 @@ export async function generateBingoCard(
         isFreeSpace: false,
         isCompleted: false,
       });
+
+      nonFreeIndex++;
     }
   }
 
@@ -232,14 +336,24 @@ export async function generateBingoCard(
   });
 }
 
+export interface WinConditionResult {
+  isWin: boolean;
+  winType: string | null;
+  completedLinesCount: number;
+  completedLineTypes: string[];
+  isBlackout: boolean;
+  nearLineCount: number;
+  nearLineSquares: number[];
+}
+
 /**
- * Checks win conditions (lines/bingo) on a card.
+ * Checks multi-line win conditions, completed lines, and 1-away tension squares on a card.
  */
 export function checkCardWinCondition(
-  squares: { position: number; isCompleted: boolean }[],
-  cardSize: "5x5" | "4x4" = "5x5"
-): { isWin: boolean; winType: string | null } {
-  const size = cardSize === "5x5" ? 5 : 4;
+  squares: { position: number; isCompleted: boolean; isFreeSpace?: boolean }[],
+  cardSize: string = "5x5"
+): WinConditionResult {
+  const size = cardSize === "4x4" ? 4 : 5;
   const grid: boolean[][] = Array.from({ length: size }, () =>
     Array(size).fill(false)
   );
@@ -252,58 +366,105 @@ export function checkCardWinCondition(
     }
   }
 
-  // Check Rows
-  for (let r = 0; r < size; r++) {
-    if (grid[r].every(Boolean)) {
-      return { isWin: true, winType: `ROW_${r + 1}` };
-    }
-  }
+  const completedLineTypes: string[] = [];
+  const nearLineSquaresSet = new Set<number>();
+  let nearLineCount = 0;
 
-  // Check Columns
-  for (let c = 0; c < size; c++) {
-    let colFull = true;
-    for (let r = 0; r < size; r++) {
-      if (!grid[r][c]) {
-        colFull = false;
-        break;
+  // 1. Check Rows
+  for (let r = 0; r < size; r++) {
+    const rowSquares = grid[r];
+    const completedCount = rowSquares.filter(Boolean).length;
+    if (completedCount === size) {
+      completedLineTypes.push(`ROW_${r + 1}`);
+    } else if (completedCount === size - 1) {
+      nearLineCount++;
+      const missingCol = rowSquares.findIndex((c) => !c);
+      if (missingCol !== -1) {
+        nearLineSquaresSet.add(r * size + missingCol);
       }
     }
-    if (colFull) {
-      return { isWin: true, winType: `COL_${c + 1}` };
+  }
+
+  // 2. Check Columns
+  for (let c = 0; c < size; c++) {
+    let colCompletedCount = 0;
+    let missingRow = -1;
+    for (let r = 0; r < size; r++) {
+      if (grid[r][c]) {
+        colCompletedCount++;
+      } else {
+        missingRow = r;
+      }
+    }
+    if (colCompletedCount === size) {
+      completedLineTypes.push(`COL_${c + 1}`);
+    } else if (colCompletedCount === size - 1 && missingRow !== -1) {
+      nearLineCount++;
+      nearLineSquaresSet.add(missingRow * size + c);
     }
   }
 
-  // Check Main Diagonal (\)
-  let diag1 = true;
+  // 3. Check Main Diagonal (\)
+  let diag1Count = 0;
+  let missingDiag1 = -1;
   for (let i = 0; i < size; i++) {
-    if (!grid[i][i]) {
-      diag1 = false;
-      break;
+    if (grid[i][i]) {
+      diag1Count++;
+    } else {
+      missingDiag1 = i;
     }
   }
-  if (diag1) {
-    return { isWin: true, winType: "DIAGONAL_MAIN" };
+  if (diag1Count === size) {
+    completedLineTypes.push("DIAGONAL_MAIN");
+  } else if (diag1Count === size - 1 && missingDiag1 !== -1) {
+    nearLineCount++;
+    nearLineSquaresSet.add(missingDiag1 * size + missingDiag1);
   }
 
-  // Check Anti Diagonal (/)
-  let diag2 = true;
+  // 4. Check Anti Diagonal (/)
+  let diag2Count = 0;
+  let missingDiag2 = -1;
   for (let i = 0; i < size; i++) {
-    if (!grid[i][size - 1 - i]) {
-      diag2 = false;
-      break;
+    const col = size - 1 - i;
+    if (grid[i][col]) {
+      diag2Count++;
+    } else {
+      missingDiag2 = i;
     }
   }
-  if (diag2) {
-    return { isWin: true, winType: "DIAGONAL_ANTI" };
+  if (diag2Count === size) {
+    completedLineTypes.push("DIAGONAL_ANTI");
+  } else if (diag2Count === size - 1 && missingDiag2 !== -1) {
+    nearLineCount++;
+    nearLineSquaresSet.add(missingDiag2 * size + (size - 1 - missingDiag2));
   }
 
-  // Check Blackout
+  // 5. Check Blackout
   const allCompleted = squares.every((s) => s.isCompleted);
-  if (allCompleted) {
-    return { isWin: true, winType: "BLACKOUT" };
+  const isBlackout = allCompleted;
+
+  const completedLinesCount = completedLineTypes.length;
+  let winType: string | null = null;
+
+  if (isBlackout) {
+    winType = "BLACKOUT";
+  } else if (completedLinesCount >= 3) {
+    winType = `MULTI_LINE_${completedLinesCount}`;
+  } else if (completedLinesCount === 2) {
+    winType = "TWO_LINES";
+  } else if (completedLinesCount === 1) {
+    winType = completedLineTypes[0];
   }
 
-  return { isWin: false, winType: null };
+  return {
+    isWin: completedLinesCount > 0 || isBlackout,
+    winType,
+    completedLinesCount,
+    completedLineTypes,
+    isBlackout,
+    nearLineCount,
+    nearLineSquares: Array.from(nearLineSquaresSet),
+  };
 }
 
 /**
@@ -368,14 +529,14 @@ export async function claimSquareSelection(
   let isWin = false;
   let winType = null;
 
-  if (winCheck.isWin && !square.card.isCompleted) {
+  if (winCheck.isWin) {
     isWin = true;
     winType = winCheck.winType;
     await prisma.card.update({
       where: { id: square.card.id },
       data: {
         isCompleted: true,
-        completedAt: now,
+        completedAt: square.card.isCompleted ? square.card.completedAt : now,
         winningLineType: winType,
       },
     });
@@ -385,6 +546,11 @@ export async function claimSquareSelection(
     square: updatedSquare,
     isWin,
     winType,
+    completedLinesCount: winCheck.completedLinesCount,
+    completedLineTypes: winCheck.completedLineTypes,
+    nearLineCount: winCheck.nearLineCount,
+    nearLineSquares: winCheck.nearLineSquares,
+    isBlackout: winCheck.isBlackout,
   };
 }
 
@@ -666,4 +832,229 @@ export async function getLiveLeaderboard(eventId: string) {
     rank: index + 1,
     ...entry,
   }));
+}
+
+/**
+ * Swaps an unfillable or impossible square on a player's card for an active trait (PRD §5.7).
+ * Strictly preserves card balance and never duplicates an existing trait on the card.
+ */
+export async function swapUnfillableSquare(playerId: string, squareId: string) {
+  const square = await prisma.cardSquare.findUnique({
+    where: { id: squareId },
+    include: {
+      card: {
+        include: {
+          event: true,
+          squares: true,
+        },
+      },
+    },
+  });
+
+  if (!square) {
+    throw new Error("Square not found");
+  }
+
+  if (square.card.playerId !== playerId) {
+    throw new Error("Unauthorized: Square does not belong to this player");
+  }
+
+  if (square.isCompleted) {
+    throw new Error("Completed squares cannot be swapped");
+  }
+
+  if (square.isFreeSpace) {
+    throw new Error("Free space cannot be swapped");
+  }
+
+  const eventId = square.card.eventId;
+
+  // Find all traits answered by attendees in this event
+  const attendeeResponses = await prisma.surveyResponse.findMany({
+    where: { player: { eventId } },
+    select: { questionId: true, selectedOption: true },
+  });
+
+  const existingCardTraitIds = new Set(square.card.squares.map((s) => s.traitId));
+  const [currentQuestionId] = square.traitId.split("::");
+
+  // 1. Prioritize finding an alternate option from the SAME question that has active holders in the room
+  const sameQuestionCandidates = attendeeResponses.filter(
+    (r) =>
+      r.questionId === currentQuestionId &&
+      !existingCardTraitIds.has(`${r.questionId}::${r.selectedOption}`)
+  );
+
+  let replacement: { questionId: string; selectedOption: string } | null = null;
+
+  if (sameQuestionCandidates.length > 0) {
+    const pick =
+      sameQuestionCandidates[
+        Math.floor(Math.random() * sameQuestionCandidates.length)
+      ];
+    replacement = {
+      questionId: pick.questionId,
+      selectedOption: pick.selectedOption,
+    };
+  } else {
+    // 2. Fallback: find any active trait from another question held by attendees in the room
+    const otherCandidates = attendeeResponses.filter(
+      (r) =>
+        !existingCardTraitIds.has(`${r.questionId}::${r.selectedOption}`)
+    );
+
+    if (otherCandidates.length > 0) {
+      const pick =
+        otherCandidates[Math.floor(Math.random() * otherCandidates.length)];
+      replacement = {
+        questionId: pick.questionId,
+        selectedOption: pick.selectedOption,
+      };
+    }
+  }
+
+  // 3. Last resort fallback: find any unused option from the question template
+  if (!replacement) {
+    const question = await prisma.question.findUnique({
+      where: { id: currentQuestionId },
+    });
+    if (question) {
+      let opts: string[] = [];
+      try {
+        opts = JSON.parse(question.options);
+      } catch {
+        opts = [];
+      }
+      const unusedOpts = opts.filter(
+        (o) => !existingCardTraitIds.has(`${question.id}::${o}`)
+      );
+      if (unusedOpts.length > 0) {
+        replacement = {
+          questionId: question.id,
+          selectedOption: unusedOpts[0],
+        };
+      }
+    }
+  }
+
+  if (!replacement) {
+    throw new Error("No eligible replacement challenge found for this square");
+  }
+
+  const question = await prisma.question.findUnique({
+    where: { id: replacement.questionId },
+  });
+
+  if (!question) {
+    throw new Error("Question definition not found");
+  }
+
+  const newTraitId = `${replacement.questionId}::${replacement.selectedOption}`;
+  const newPromptText = formatPromptText(
+    question.traitTemplate,
+    replacement.selectedOption
+  );
+  const newConversationPrompt = resolveConversationPrompt(
+    question.category,
+    replacement.selectedOption,
+    newPromptText,
+    question.conversationPrompt
+      ? question.conversationPrompt.replace("{value}", replacement.selectedOption)
+      : null
+  );
+
+  const updatedSquare = await prisma.cardSquare.update({
+    where: { id: squareId },
+    data: {
+      traitId: newTraitId,
+      promptText: newPromptText,
+      conversationPrompt: newConversationPrompt,
+    },
+  });
+
+  return {
+    success: true,
+    square: updatedSquare,
+    message: `Square swapped to: "${newPromptText}"`,
+  };
+}
+
+/**
+ * Computes live room trait heat and category distribution for the host console (PRD §6.5).
+ */
+export async function computeTraitHeat(eventId: string) {
+  const [questions, responses, stampedSquares, totalPlayers] =
+    await Promise.all([
+      prisma.question.findMany({
+        where: { eventId },
+        orderBy: { order: "asc" },
+      }),
+      prisma.surveyResponse.findMany({
+        where: { player: { eventId } },
+        select: { questionId: true, selectedOption: true },
+      }),
+      prisma.cardSquare.findMany({
+        where: {
+          card: { eventId },
+          isCompleted: true,
+          isFreeSpace: false,
+        },
+        select: { traitId: true },
+      }),
+      prisma.player.count({ where: { eventId } }),
+    ]);
+
+  // Count active attendees who hold each trait
+  const holderCounts = new Map<string, number>();
+  for (const r of responses) {
+    const key = `${r.questionId}::${r.selectedOption}`;
+    holderCounts.set(key, (holderCounts.get(key) || 0) + 1);
+  }
+
+  // Count how many times each trait was stamped
+  const stampCounts = new Map<string, number>();
+  for (const s of stampedSquares) {
+    stampCounts.set(s.traitId, (stampCounts.get(s.traitId) || 0) + 1);
+  }
+
+  const categoryHeat = questions.map((q) => {
+    let options: string[] = [];
+    try {
+      options = JSON.parse(q.options);
+    } catch {
+      options = [];
+    }
+
+    const traits = options.map((opt) => {
+      const traitKey = `${q.id}::${opt}`;
+      const holders = holderCounts.get(traitKey) || 0;
+      const stamps = stampCounts.get(traitKey) || 0;
+      const promptText = formatPromptText(q.traitTemplate, opt);
+
+      // Hot if held by >= 20% of players (min 2), Cold if 0 holders or only 1 when >= 4 players
+      const isHot =
+        totalPlayers >= 3 &&
+        holders >= Math.max(2, Math.round(totalPlayers * 0.2));
+      const isCold = (totalPlayers >= 4 && holders <= 1) || holders === 0;
+
+      return {
+        traitId: traitKey,
+        option: opt,
+        promptText,
+        holdersCount: holders,
+        stampedCount: stamps,
+        isHot,
+        isCold,
+      };
+    });
+
+    return {
+      questionId: q.id,
+      category: q.category,
+      prompt: q.prompt,
+      traits,
+    };
+  });
+
+  return categoryHeat;
 }

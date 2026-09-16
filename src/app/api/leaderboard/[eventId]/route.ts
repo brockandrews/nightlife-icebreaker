@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getLiveLeaderboard } from "@/lib/game-engine";
+import { getLiveLeaderboard, computeTraitHeat } from "@/lib/game-engine";
 
 export async function GET(
   request: Request,
@@ -22,7 +22,10 @@ export async function GET(
       );
     }
 
-    const leaderboard = await getLiveLeaderboard(event.id);
+    const [leaderboard, traitHeat] = await Promise.all([
+      getLiveLeaderboard(event.id),
+      computeTraitHeat(event.id),
+    ]);
 
     // Compute stats HUD
     const totalPlayers = await prisma.player.count({
@@ -98,6 +101,7 @@ export async function GET(
             : 0,
       },
       leaderboard,
+      traitHeat,
       recentConnections: recentConnections.map((c) => ({
         id: c.id,
         playerA: c.playerA.displayName,
