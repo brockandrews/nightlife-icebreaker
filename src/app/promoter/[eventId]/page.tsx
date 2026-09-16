@@ -30,8 +30,12 @@ import {
   Pencil,
   Check,
   X,
+  Copy,
 } from "lucide-react";
 import { TraitHeatmap } from "@/components/TraitHeatmap";
+import DuplicateEventModal from "@/components/DuplicateEventModal";
+import PaywallModal from "@/components/PaywallModal";
+import confetti from "canvas-confetti";
 
 export default function PromoterLiveConsole() {
   const params = useParams();
@@ -101,6 +105,23 @@ export default function PromoterLiveConsole() {
     }
   };
 
+  // Duplication & Pass Management State
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [hostInfo, setHostInfo] = useState<any>(null);
+
+  const fetchHostInfo = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      const data = await res.json();
+      if (data.success && data.host) {
+        setHostInfo(data.host);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const fetchLiveStats = useCallback(async () => {
     try {
       const res = await fetch(`/api/leaderboard/${eventId}`);
@@ -163,6 +184,7 @@ export default function PromoterLiveConsole() {
   useEffect(() => {
     fetchLiveStats();
     fetchSafetyData();
+    fetchHostInfo();
 
     // Subscribe to SSE event channel for live updates
     const sse = new EventSource(
@@ -432,6 +454,17 @@ export default function PromoterLiveConsole() {
             <FileSpreadsheet className="w-4 h-4 text-green-400" />
             <span>Leads CSV</span>
           </button>
+
+          {hostInfo?.role !== "DOOR_STAFF" && (
+            <button
+              onClick={() => setDuplicateModalOpen(true)}
+              className="py-2.5 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all"
+              title="Duplicate this event for a future date"
+            >
+              <Copy className="w-4 h-4 text-cyan-400" />
+              <span>Duplicate</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1111,6 +1144,28 @@ export default function PromoterLiveConsole() {
           )}
         </div>
       </div>
+
+      <DuplicateEventModal
+        isOpen={duplicateModalOpen}
+        onClose={() => setDuplicateModalOpen(false)}
+        event={eventData}
+        hostPasses={(hostInfo?.freeEventsRemaining || 0) + (hostInfo?.purchasedCredits || 0)}
+        onOpenPaywall={() => setPaywallOpen(true)}
+        onSuccess={(newEvent) => {
+          try {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+          } catch (e) {}
+          router.push(`/promoter/${newEvent.id}`);
+        }}
+      />
+
+      <PaywallModal
+        isOpen={paywallOpen}
+        onClose={() => {
+          setPaywallOpen(false);
+          fetchHostInfo();
+        }}
+      />
     </main>
   );
 }

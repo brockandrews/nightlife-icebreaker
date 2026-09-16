@@ -70,15 +70,31 @@ export async function POST(
       );
     }
 
-    // Parse optional custom parameters from body
+    // Parse custom parameters from body
     const body = await request.json().catch(() => ({}));
-    const newScheduledDate = body.scheduledDate
-      ? new Date(body.scheduledDate)
-      : new Date();
+
+    if (!body.scheduledDate) {
+      return NextResponse.json(
+        { success: false, error: "Scheduled date is required to duplicate an event." },
+        { status: 400 }
+      );
+    }
+
+    const newScheduledDate = new Date(body.scheduledDate);
+    if (isNaN(newScheduledDate.getTime())) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a valid scheduled date & time." },
+        { status: 400 }
+      );
+    }
+
     const newEndTime = body.endTime
       ? new Date(body.endTime)
       : new Date(newScheduledDate.getTime() + 6 * 60 * 60 * 1000);
-    const newName = body.name || `${originalEvent.name} (Copy)`;
+    const newName =
+      (body.name && typeof body.name === "string" && body.name.trim())
+        ? body.name.trim().slice(0, 100)
+        : `${originalEvent.name} (Copy)`;
 
     // Generate unique 6-character door code token
     let newDoorCode = generate6CharDoorCode();

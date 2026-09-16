@@ -32,6 +32,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import PaywallModal from "@/components/PaywallModal";
 import TeamManagementModal from "@/components/TeamManagementModal";
+import DuplicateEventModal from "@/components/DuplicateEventModal";
 import confetti from "canvas-confetti";
 
 function formatEventDateTime(dateString?: string | null) {
@@ -54,8 +55,9 @@ export default function HostDashboard() {
   const [signingOut, setSigningOut] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
-  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [selectedDuplicateEvent, setSelectedDuplicateEvent] = useState<any | null>(null);
 
   // Event Renaming State
   const [renamingEventId, setRenamingEventId] = useState<string | null>(null);
@@ -165,38 +167,6 @@ export default function HostDashboard() {
       console.error("Sign out error:", err);
     } finally {
       window.location.href = "/login";
-    }
-  };
-
-  const handleDuplicateEvent = async (eventId: string) => {
-    try {
-      setDuplicatingId(eventId);
-      const res = await fetch(`/api/events/${eventId}/duplicate`, {
-        method: "POST",
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        if (data.code === "PAYWALL_REQUIRED") {
-          setPaywallOpen(true);
-        } else {
-          alert(data.error || "Failed to duplicate event.");
-        }
-        return;
-      }
-
-      setPaymentBanner(
-        `📋 Cloned "${data.event.name}" with Door Code ${data.event.doorCodeToken}!`
-      );
-      try {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      } catch (e) {}
-      await loadDashboardData();
-    } catch (err: any) {
-      console.error("Duplication error:", err);
-      alert(err.message || "Failed to duplicate event.");
-    } finally {
-      setDuplicatingId(null);
     }
   };
 
@@ -593,19 +563,17 @@ export default function HostDashboard() {
                       <span>Print QR</span>
                     </button>
 
-                    {/* 1-Click Duplicate Button (Owner & Manager) */}
+                    {/* Duplicate Button (Owner & Manager) */}
                     {canCreateOrDuplicate && (
                       <button
-                        onClick={() => handleDuplicateEvent(evt.id)}
-                        disabled={duplicatingId === evt.id}
-                        className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all disabled:opacity-50"
-                        title="1-Click Clone Event & Questions"
+                        onClick={() => {
+                          setSelectedDuplicateEvent(evt);
+                          setDuplicateModalOpen(true);
+                        }}
+                        className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all"
+                        title="Duplicate Event & Questions"
                       >
-                        {duplicatingId === evt.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5 text-cyan-400" />
-                        )}
+                        <Copy className="w-3.5 h-3.5 text-cyan-400" />
                         <span>Duplicate</span>
                       </button>
                     )}
@@ -637,6 +605,26 @@ export default function HostDashboard() {
         organizationName={hostInfo?.organization || "Your Venue"}
         currentUserRole={hostInfo?.role || "OWNER"}
         isOwner={isOwner}
+      />
+
+      <DuplicateEventModal
+        isOpen={duplicateModalOpen}
+        onClose={() => {
+          setDuplicateModalOpen(false);
+          setSelectedDuplicateEvent(null);
+        }}
+        event={selectedDuplicateEvent}
+        hostPasses={(hostInfo?.freeEventsRemaining || 0) + (hostInfo?.purchasedCredits || 0)}
+        onOpenPaywall={() => setPaywallOpen(true)}
+        onSuccess={async (newEvent) => {
+          setPaymentBanner(
+            `📋 Cloned "${newEvent.name}" with Door Code ${newEvent.doorCodeToken}!`
+          );
+          try {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+          } catch (e) {}
+          await loadDashboardData();
+        }}
       />
     </main>
   );
