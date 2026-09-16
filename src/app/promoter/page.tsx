@@ -25,6 +25,9 @@ import {
   CreditCard,
   Copy,
   ShieldCheck,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import PaywallModal from "@/components/PaywallModal";
@@ -53,6 +56,37 @@ export default function HostDashboard() {
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
+
+  // Event Renaming State
+  const [renamingEventId, setRenamingEventId] = useState<string | null>(null);
+  const [renamingName, setRenamingName] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
+
+  const handleSaveRename = async (eventId: string) => {
+    if (!renamingName.trim()) return;
+    setSavingRename(true);
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renamingName.trim() }),
+      });
+      const data = await res.json();
+      if (data.success && data.event) {
+        setEvents((prev) =>
+          prev.map((e) => (e.id === eventId ? { ...e, name: data.event.name } : e))
+        );
+        setRenamingEventId(null);
+      } else {
+        alert(data.error || "Failed to update event name");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update event name");
+    } finally {
+      setSavingRename(false);
+    }
+  };
 
   const supabase = createClient();
 
@@ -438,9 +472,61 @@ export default function HostDashboard() {
                     </div>
 
                     {/* Event Title */}
-                    <h3 className="text-lg font-black text-white leading-tight">
-                      {evt.name}
-                    </h3>
+                    {renamingEventId === evt.id ? (
+                      <div className="flex items-center gap-2 py-1">
+                        <input
+                          type="text"
+                          value={renamingName}
+                          onChange={(e) => setRenamingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveRename(evt.id);
+                            if (e.key === "Escape") setRenamingEventId(null);
+                          }}
+                          className="px-3 py-1 bg-slate-900 border border-cyan-500 rounded-xl text-base font-bold text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner"
+                          autoFocus
+                          disabled={savingRename}
+                          maxLength={100}
+                        />
+                        <button
+                          onClick={() => handleSaveRename(evt.id)}
+                          disabled={savingRename || !renamingName.trim()}
+                          className="p-1.5 bg-cyan-400 hover:bg-cyan-300 text-black rounded-lg font-bold transition-all disabled:opacity-50"
+                          title="Save Name"
+                        >
+                          {savingRename ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setRenamingEventId(null)}
+                          disabled={savingRename}
+                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-all"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 group">
+                        <h3 className="text-lg font-black text-white leading-tight">
+                          {evt.name}
+                        </h3>
+                        {canCreateOrDuplicate && (
+                          <button
+                            onClick={() => {
+                              setRenamingEventId(evt.id);
+                              setRenamingName(evt.name);
+                            }}
+                            className="p-1 rounded-md text-slate-500 hover:text-cyan-300 hover:bg-slate-800 transition-colors opacity-75 group-hover:opacity-100"
+                            title="Rename Event"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {/* Venue and Metrics */}
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">

@@ -27,6 +27,9 @@ import {
   Unlock,
   AlertCircle,
   Fingerprint,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { TraitHeatmap } from "@/components/TraitHeatmap";
 
@@ -68,6 +71,35 @@ export default function PromoterLiveConsole() {
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResults, setLookupResults] = useState<any[]>([]);
   const [lookupLoading, setLookupLoading] = useState(false);
+
+  // Event Name Editing State
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
+  const handleSaveName = async () => {
+    if (!editedName.trim() || !eventData) return;
+    setSavingName(true);
+    try {
+      const res = await fetch(`/api/events/${eventData.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editedName.trim() }),
+      });
+      const data = await res.json();
+      if (data.success && data.event) {
+        setEventData((prev: any) => ({ ...prev, name: data.event.name }));
+        setIsEditingName(false);
+      } else {
+        alert(data.error || "Failed to update event name");
+      }
+    } catch (err) {
+      console.error("Error updating event name:", err);
+      alert("Failed to update event name. Please try again.");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const fetchLiveStats = useCallback(async () => {
     try {
@@ -318,9 +350,59 @@ export default function PromoterLiveConsole() {
                 Code: {eventData.doorCodeToken}
               </span>
             </div>
-            <h1 className="text-2xl font-black text-white leading-tight">
-              {eventData.name}
-            </h1>
+            {isEditingName ? (
+              <div className="flex items-center gap-2 my-1">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveName();
+                    if (e.key === "Escape") setIsEditingName(false);
+                  }}
+                  className="px-3 py-1 bg-slate-900 border border-cyan-500 rounded-xl text-xl font-black text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 shadow-inner"
+                  autoFocus
+                  disabled={savingName}
+                  maxLength={100}
+                />
+                <button
+                  onClick={handleSaveName}
+                  disabled={savingName || !editedName.trim()}
+                  className="p-1.5 bg-cyan-400 hover:bg-cyan-300 text-black rounded-lg font-bold transition-all disabled:opacity-50"
+                  title="Save Name"
+                >
+                  {savingName ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setIsEditingName(false)}
+                  disabled={savingName}
+                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-all"
+                  title="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h1 className="text-2xl font-black text-white leading-tight">
+                  {eventData.name}
+                </h1>
+                <button
+                  onClick={() => {
+                    setEditedName(eventData.name);
+                    setIsEditingName(true);
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-cyan-300 transition-colors opacity-75 group-hover:opacity-100"
+                  title="Edit Game Name"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             <p className="text-xs text-slate-400">📍 {eventData.venueName}</p>
           </div>
         </div>
