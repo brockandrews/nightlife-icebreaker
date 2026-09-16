@@ -23,9 +23,12 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
+  Copy,
+  ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import PaywallModal from "@/components/PaywallModal";
+import TeamManagementModal from "@/components/TeamManagementModal";
 import confetti from "canvas-confetti";
 
 function formatEventDateTime(dateString?: string | null) {
@@ -47,6 +50,8 @@ export default function HostDashboard() {
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [paymentBanner, setPaymentBanner] = useState<string | null>(null);
 
   const supabase = createClient();
@@ -129,6 +134,44 @@ export default function HostDashboard() {
     }
   };
 
+  const handleDuplicateEvent = async (eventId: string) => {
+    try {
+      setDuplicatingId(eventId);
+      const res = await fetch(`/api/events/${eventId}/duplicate`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        if (data.code === "PAYWALL_REQUIRED") {
+          setPaywallOpen(true);
+        } else {
+          alert(data.error || "Failed to duplicate event.");
+        }
+        return;
+      }
+
+      setPaymentBanner(
+        `📋 Cloned "${data.event.name}" with Door Code ${data.event.doorCodeToken}!`
+      );
+      try {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      } catch (e) {}
+      await loadDashboardData();
+    } catch (err: any) {
+      console.error("Duplication error:", err);
+      alert(err.message || "Failed to duplicate event.");
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
+
+  const isOwner = hostInfo?.isOwner ?? true;
+  const isDoorStaff = hostInfo?.role === "DOOR_STAFF";
+  const isManager = hostInfo?.role === "MANAGER";
+  const canManageTeam = isOwner || isManager;
+  const canCreateOrDuplicate = !isDoorStaff;
+
   const totalAttendees = events.reduce(
     (sum, e) => sum + (e._count?.players || 0),
     0
@@ -152,8 +195,13 @@ export default function HostDashboard() {
                 Mixx<span className="text-cyan-400">Social</span>
               </h1>
               <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                Host Console
+                {isDoorStaff ? "Door Staff Console" : "Host Console"}
               </span>
+              {hostInfo?.role && (
+                <span className="text-[9px] bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-full font-mono font-bold">
+                  {hostInfo.role}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
               {hostInfo?.organization ? (
@@ -173,7 +221,8 @@ export default function HostDashboard() {
 
         {/* Action Controls & User Profile */}
         <div className="flex flex-wrap items-center gap-2">
-          {hostInfo && (
+          {/* Billing & Passes (Owner only) */}
+          {hostInfo && isOwner && (
             <>
               {(hostInfo.freeEventsRemaining || 0) + (hostInfo.purchasedCredits || 0) > 0 ? (
                 <div className="py-1.5 px-3 rounded-xl bg-purple-950/80 border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 shadow-sm">
@@ -205,6 +254,17 @@ export default function HostDashboard() {
             </>
           )}
 
+          {/* Team Management (Owner & Manager) */}
+          {canManageTeam && (
+            <button
+              onClick={() => setTeamModalOpen(true)}
+              className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-all shadow-sm"
+            >
+              <Users className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Manage Team</span>
+            </button>
+          )}
+
           <a
             href="/"
             className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold"
@@ -212,21 +272,24 @@ export default function HostDashboard() {
             Guest Door
           </a>
 
-          <button
-            onClick={() => {
-              const remaining =
-                (hostInfo?.freeEventsRemaining || 0) + (hostInfo?.purchasedCredits || 0);
-              if (remaining <= 0) {
-                setPaywallOpen(true);
-              } else {
-                router.push("/promoter/new");
-              }
-            }}
-            className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 text-black font-extrabold text-xs shadow-lg shadow-cyan-500/20 active:scale-95 transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Event</span>
-          </button>
+          {/* Create Event (Owner & Manager) */}
+          {canCreateOrDuplicate && (
+            <button
+              onClick={() => {
+                const remaining =
+                  (hostInfo?.freeEventsRemaining || 0) + (hostInfo?.purchasedCredits || 0);
+                if (isOwner && remaining <= 0) {
+                  setPaywallOpen(true);
+                } else {
+                  router.push("/promoter/new");
+                }
+              }}
+              className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-400 to-teal-300 text-black font-extrabold text-xs shadow-lg shadow-cyan-500/20 active:scale-95 transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Event</span>
+            </button>
+          )}
 
           <button
             onClick={handleSignOut}
@@ -243,7 +306,7 @@ export default function HostDashboard() {
         </div>
       </div>
 
-      {/* Payment Success Banner */}
+      {/* Payment / Notification Banner */}
       {paymentBanner && (
         <div className="my-4 p-4 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs sm:text-sm font-bold flex items-center justify-between shadow-lg">
           <span>{paymentBanner}</span>
@@ -314,12 +377,14 @@ export default function HostDashboard() {
             <p className="text-xs text-slate-400 mb-4 max-w-sm mx-auto">
               Launch your first icebreaker mixer in under 2 minutes. Your first event is 100% free!
             </p>
-            <button
-              onClick={() => router.push("/promoter/new")}
-              className="py-2.5 px-5 bg-cyan-400 text-black font-extrabold rounded-xl text-xs shadow-lg shadow-cyan-500/20"
-            >
-              Create Free Event
-            </button>
+            {canCreateOrDuplicate && (
+              <button
+                onClick={() => router.push("/promoter/new")}
+                className="py-2.5 px-5 bg-cyan-400 text-black font-extrabold rounded-xl text-xs shadow-lg shadow-cyan-500/20"
+              >
+                Create Free Event
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -415,6 +480,7 @@ export default function HostDashboard() {
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {/* Live Console */}
                     <button
                       onClick={() => router.push(`/promoter/${evt.id}`)}
                       className="py-2 px-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-purple-900/30"
@@ -423,14 +489,16 @@ export default function HostDashboard() {
                       <span>Live Console</span>
                     </button>
 
+                    {/* Projector View */}
                     <button
                       onClick={() => router.push(`/promoter/${evt.id}/projector`)}
                       className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700"
                     >
                       <Monitor className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Projector View</span>
+                      <span>Projector</span>
                     </button>
 
+                    {/* Print QR Assets */}
                     <button
                       onClick={() => router.push(`/promoter/${evt.id}/qr`)}
                       className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700"
@@ -439,12 +507,30 @@ export default function HostDashboard() {
                       <span>Print QR</span>
                     </button>
 
+                    {/* 1-Click Duplicate Button (Owner & Manager) */}
+                    {canCreateOrDuplicate && (
+                      <button
+                        onClick={() => handleDuplicateEvent(evt.id)}
+                        disabled={duplicatingId === evt.id}
+                        className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700 active:scale-95 transition-all disabled:opacity-50"
+                        title="1-Click Clone Event & Questions"
+                      >
+                        {duplicatingId === evt.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                        )}
+                        <span>Duplicate</span>
+                      </button>
+                    )}
+
+                    {/* Post-Event Report & Audit */}
                     <button
                       onClick={() => router.push(`/promoter/${evt.id}/report`)}
                       className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center gap-1.5 border border-slate-700"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-green-400" />
-                      <span>Report / Leads</span>
+                      <span>Report / Audit</span>
                     </button>
                   </div>
                 </div>
@@ -457,6 +543,14 @@ export default function HostDashboard() {
       <PaywallModal
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
+      />
+
+      <TeamManagementModal
+        isOpen={teamModalOpen}
+        onClose={() => setTeamModalOpen(false)}
+        organizationName={hostInfo?.organization || "Your Venue"}
+        currentUserRole={hostInfo?.role || "OWNER"}
+        isOwner={isOwner}
       />
     </main>
   );

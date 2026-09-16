@@ -28,7 +28,7 @@ export async function createClient() {
 }
 
 /**
- * Returns the currently authenticated Host record from Prisma, or null if not logged in.
+ * Returns the currently authenticated Host record from Prisma (or team member context), or null if not logged in.
  */
 export async function getAuthenticatedHost() {
   try {
@@ -44,7 +44,45 @@ export async function getAuthenticatedHost() {
       where: { id: user.id },
     });
 
-    return host;
+    if (host) {
+      return {
+        ...host,
+        role: host.role || "OWNER",
+        isOwner: true,
+        isTeamMember: false,
+      };
+    }
+
+    // Check if authenticated user is a team member under another host
+    const teamMember = await prisma.teamMember.findFirst({
+      where: {
+        OR: [
+          { userId: user.id },
+          ...(user.email ? [{ email: user.email }] : []),
+        ],
+      },
+      include: { host: true },
+    });
+
+    if (teamMember) {
+      // Link userId if not yet linked
+      if (!teamMember.userId) {
+        await prisma.teamMember.update({
+          where: { id: teamMember.id },
+          data: { userId: user.id },
+        });
+      }
+
+      return {
+        ...teamMember.host,
+        role: teamMember.role,
+        isOwner: teamMember.role === "OWNER",
+        isTeamMember: true,
+        memberId: teamMember.id,
+      };
+    }
+
+    return null;
   } catch (error) {
     console.error("Error getting authenticated host:", error);
     return null;

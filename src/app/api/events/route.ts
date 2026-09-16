@@ -59,6 +59,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Role check: Door staff cannot create new events
+    if (host.role === "DOOR_STAFF") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden. Door staff are not authorized to create new events." },
+        { status: 403 }
+      );
+    }
+
     // Enforce paywall: Verify host has available event credits
     const totalCredits = (host.freeEventsRemaining || 0) + (host.purchasedCredits || 0);
     if (totalCredits <= 0) {

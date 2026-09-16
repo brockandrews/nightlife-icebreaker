@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedHost } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -16,16 +16,9 @@ export async function GET() {
       );
     }
 
-    let host = await prisma.host.findUnique({
-      where: { id: user.id },
-      include: {
-        _count: {
-          select: { events: true },
-        },
-      },
-    });
+    let host = await getAuthenticatedHost();
 
-    // Auto-provision if missing
+    // Auto-provision if neither Host nor TeamMember exists yet
     if (!host) {
       const metadata = user.user_metadata || {};
       const displayName =
@@ -36,7 +29,7 @@ export async function GET() {
       const organization =
         metadata.organization || metadata.company || "Independent Host";
 
-      host = await prisma.host.create({
+      const newHost = await prisma.host.create({
         data: {
           id: user.id,
           email: user.email!,
@@ -45,13 +38,19 @@ export async function GET() {
           role: "OWNER",
           freeEventsRemaining: 1,
         },
-        include: {
-          _count: {
-            select: { events: true },
-          },
-        },
       });
+
+      host = {
+        ...newHost,
+        role: "OWNER",
+        isOwner: true,
+        isTeamMember: false,
+      };
     }
+
+    const totalEventsCount = await prisma.event.count({
+      where: { hostId: host.id },
+    });
 
     return NextResponse.json({
       success: true,
@@ -61,9 +60,11 @@ export async function GET() {
         displayName: host.displayName,
         organization: host.organization,
         role: host.role,
+        isOwner: host.isOwner,
+        isTeamMember: host.isTeamMember,
         freeEventsRemaining: host.freeEventsRemaining,
         purchasedCredits: host.purchasedCredits ?? 0,
-        totalEventsCount: host._count.events,
+        totalEventsCount,
       },
     });
   } catch (error: any) {

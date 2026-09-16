@@ -22,6 +22,23 @@ model Host {
 
   events              Event[]
   purchases           Purchase[]
+  teamMembers         TeamMember[]
+}
+
+model TeamMember {
+  id           String   @id @default(cuid())
+  hostId       String
+  host         Host     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  email        String
+  displayName  String
+  role         String   @default("DOOR_STAFF") // OWNER, MANAGER, DOOR_STAFF
+  userId       String?  // Linked Supabase user ID if already signed up
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([hostId, email])
+  @@index([hostId])
+  @@index([userId])
 }
 
 model Purchase {
