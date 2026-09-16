@@ -9,6 +9,7 @@
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:rls": "tsx scripts/enable-rls.ts",
     "db:generate": "prisma generate",
     "test:simulation": "tsx scripts/simulate-full-game.ts"
   },

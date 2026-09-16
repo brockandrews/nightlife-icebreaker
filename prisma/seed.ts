@@ -97,7 +97,18 @@ async function main() {
     console.log(`✓ Backfilled ${updatedQuestions.count} event questions with themePackId`);
   }
 
-  console.log("Theme pack seeding and migration completed successfully!");
+  // 4. Ensure Row Level Security (RLS) is enabled on all public tables
+  const publicTables: { tablename: string; rowsecurity: boolean }[] = await prisma.$queryRaw`
+    SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
+  `;
+  for (const t of publicTables) {
+    if (!t.rowsecurity) {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "public"."${t.tablename}" ENABLE ROW LEVEL SECURITY;`);
+      console.log(`✓ Enabled RLS on "public"."${t.tablename}"`);
+    }
+  }
+
+  console.log("Theme pack seeding, migration, and RLS verification completed successfully!");
 }
 
 main()
