@@ -15,7 +15,7 @@ function generate6CharDoorCode(): string {
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ code: string }> }
 ) {
   try {
     const host = await getAuthenticatedHost();
@@ -48,7 +48,7 @@ export async function POST(
       );
     }
 
-    const { id } = await params;
+    const { code: id } = await params;
 
     // Fetch original event
     const originalEvent = await prisma.event.findFirst({

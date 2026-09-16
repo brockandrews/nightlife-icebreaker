@@ -4,7 +4,7 @@ import { getAuthenticatedHost } from "@/lib/supabase/server";
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ code: string }> }
 ) {
   try {
     const host = await getAuthenticatedHost();
@@ -16,7 +16,7 @@ export async function GET(
       );
     }
 
-    const { id } = await params;
+    const { code: id } = await params;
 
     // Fetch the target event
     const event = await prisma.event.findFirst({
