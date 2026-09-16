@@ -62,6 +62,9 @@ model Event {
   completionMode   String              @default("AUTO_FILL") // AUTO_FILL, PROMPT_TO_REVEAL
   prizeDescription String              @default("VIP Drinks & Bottle Service Prize")
   doorCodeToken    String              @unique @default(cuid())
+  speedRoundActive Boolean             @default(false)
+  speedRoundEndTime DateTime?
+  scanCooldownSeconds Int              @default(20)
   themePackId      String?
   themePack        ThemePack?          @relation(fields: [themePackId], references: [id], onDelete: SetNull)
   createdAt        DateTime            @default(now())
@@ -136,6 +139,8 @@ model Player {
   checkedInAt     DateTime          @default(now())
   lastActiveAt    DateTime          @default(now())
   lastScannedAt   DateTime?         // Anti-fraud cooldown tracking
+  isDisqualified  Boolean           @default(false)
+  disqualificationReason String?
 
   surveyResponses SurveyResponse[]
   card            Card?
@@ -232,6 +237,7 @@ model Connection {
   pairKey            String   // Canonical format: "min(playerA, playerB):max(playerA, playerB)"
   squaresSatisfiedA  Int      @default(0)
   squaresSatisfiedB  Int      @default(0)
+  isSpeedRound       Boolean  @default(false)
   confirmedAt        DateTime @default(now())
 
   @@unique([eventId, pairKey])
@@ -250,17 +256,21 @@ model Announcement {
 }
 
 model Report {
-  id         String   @id @default(cuid())
-  eventId    String
-  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  reporterId String
-  reporter   Player   @relation("ReporterRelation", fields: [reporterId], references: [id], onDelete: Cascade)
-  reportedId String
-  reported   Player   @relation("ReportedRelation", fields: [reportedId], references: [id], onDelete: Cascade)
-  reason     String
-  createdAt  DateTime @default(now())
+  id             String    @id @default(cuid())
+  eventId        String
+  event          Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  reporterId     String
+  reporter       Player    @relation("ReporterRelation", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedId     String
+  reported       Player    @relation("ReportedRelation", fields: [reportedId], references: [id], onDelete: Cascade)
+  reason         String
+  status         String    @default("PENDING") // PENDING, RESOLVED, DISMISSED
+  resolvedAt     DateTime?
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
 
   @@index([eventId])
+  @@index([eventId, status])
 }
 
 model BlockedPlayer {

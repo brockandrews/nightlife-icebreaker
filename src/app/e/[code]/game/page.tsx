@@ -80,8 +80,33 @@ export default function GuestGamePage() {
   const [currentAnnouncementId, setCurrentAnnouncementId] = useState<string | null>(null);
   const [isSafetyOpen, setIsSafetyOpen] = useState(false);
 
-  // Time remaining on game clock
+  // Anti-fraud scan cooldown
+  const [cooldownSeconds, setCooldownSeconds] = useState<number>(0);
+
+  // Time remaining on game clock & speed round
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [speedRoundRemaining, setSpeedRoundRemaining] = useState<number>(0);
+
+  useEffect(() => {
+    if (!eventData?.speedRoundActive || !eventData?.speedRoundEndTime) {
+      setSpeedRoundRemaining(0);
+      return;
+    }
+
+    const updateTimer = () => {
+      const diff = Math.max(
+        0,
+        Math.floor(
+          (new Date(eventData.speedRoundEndTime).getTime() - Date.now()) / 1000
+        )
+      );
+      setSpeedRoundRemaining(diff);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [eventData?.speedRoundActive, eventData?.speedRoundEndTime]);
 
   // SSE event source refs
   const playerSseRef = useRef<EventSource | null>(null);
@@ -254,6 +279,25 @@ export default function GuestGamePage() {
       } catch (err) {}
     });
 
+    playerSse.addEventListener("PLAYER_DISQUALIFIED", (e: any) => {
+      try {
+        const payload = JSON.parse(e.data);
+        setPlayer((prev: any) => ({
+          ...prev,
+          isDisqualified: true,
+          disqualificationReason: payload.reason || "Disqualified by host",
+        }));
+      } catch (err) {}
+    });
+
+    playerSse.addEventListener("PLAYER_REINSTATED", () => {
+      setPlayer((prev: any) => ({
+        ...prev,
+        isDisqualified: false,
+        disqualificationReason: null,
+      }));
+    });
+
     // Connect to Event Public Channel
     if (player.eventId) {
       const eventSse = new EventSource(
@@ -288,8 +332,16 @@ export default function GuestGamePage() {
           const payload = JSON.parse(e.data);
           setEventData((prev: any) => ({
             ...prev,
-            status: payload.status,
-            gameEndTime: payload.gameEndTime,
+            status: payload.status ?? prev?.status,
+            gameEndTime: payload.gameEndTime ?? prev?.gameEndTime,
+            speedRoundActive:
+              payload.speedRoundActive !== undefined
+                ? payload.speedRoundActive
+                : prev?.speedRoundActive,
+            speedRoundEndTime:
+              payload.speedRoundEndTime !== undefined
+                ? payload.speedRoundEndTime
+                : prev?.speedRoundEndTime,
           }));
         } catch (err) {}
       });
@@ -376,6 +428,13 @@ export default function GuestGamePage() {
   // 3. Initiate Handshake Connection (Scan or PIN)
   const handleScanTarget = async (targetCode: string) => {
     if (!player?.id) return;
+    if (player.isDisqualified) {
+      setScanError(
+        player.disqualificationReason ||
+          "Your gameplay is currently paused by the host."
+      );
+      return;
+    }
     setScanLoading(true);
     setScanError(null);
 
@@ -390,6 +449,14 @@ export default function GuestGamePage() {
       });
 
       const data = await res.json();
+      if (res.status === 429) {
+        if (data.remainingSeconds) {
+          setCooldownSeconds(data.remainingSeconds);
+        }
+        setScanError(data.error || "Anti-fraud scan cooldown active.");
+        return;
+      }
+
       if (data.success) {
         setScannerPin("");
         setScanError(null);
@@ -579,6 +646,41 @@ export default function GuestGamePage() {
         }}
       />
 
+      {/* Speed Mixer Active Banner (PRD §6.5) */}
+      {eventData?.speedRoundActive && (
+        <div className="w-full mb-3 p-3 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 text-black rounded-2xl shadow-xl shadow-orange-500/20 flex items-center justify-between font-black animate-pulse">
+          <div className="flex items-center gap-2">
+            <span className="text-xl animate-bounce">⚡</span>
+            <div>
+              <span className="text-xs uppercase tracking-wider block leading-tight font-black">
+                Speed Mixer Active
+              </span>
+              <span className="text-[11px] font-semibold opacity-90">
+                Lightning Round: Rapid Connections!
+              </span>
+            </div>
+          </div>
+          <span className="font-mono text-base px-2.5 py-1 bg-black text-amber-300 rounded-xl shadow">
+            {Math.floor(speedRoundRemaining / 60)}:
+            {(speedRoundRemaining % 60).toString().padStart(2, "0")}
+          </span>
+        </div>
+      )}
+
+      {/* Disqualified Player Notice */}
+      {player?.isDisqualified && (
+        <div className="w-full mb-3 p-3.5 bg-red-950/90 border-2 border-red-500 rounded-2xl text-red-200">
+          <div className="flex items-center gap-2 font-black text-red-400 mb-1">
+            <AlertCircle className="w-5 h-5" />
+            <span>Gameplay Paused</span>
+          </div>
+          <p className="text-xs leading-relaxed">
+            {player.disqualificationReason ||
+              "Your gameplay has been temporarily paused by the host. Please speak with the venue host or DJ booth for assistance."}
+          </p>
+        </div>
+      )}
+
       {/* Top Header Bar */}
       <header className="w-full flex items-center justify-between pt-1 pb-3 border-b border-slate-800/80 mb-3">
         <div className="flex items-center gap-2">
@@ -654,6 +756,7 @@ export default function GuestGamePage() {
               clearError={() => setScanError(null)}
               pinCode={scannerPin}
               onPinChange={setScannerPin}
+              cooldownSeconds={cooldownSeconds}
             />
           </div>
         )}

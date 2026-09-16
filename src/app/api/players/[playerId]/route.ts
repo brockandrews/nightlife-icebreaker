@@ -70,6 +70,7 @@ export async function GET(
         shortCode: c.playerB.shortCode,
         confirmedAt: c.confirmedAt,
         squaresSatisfied: c.squaresSatisfiedA,
+        isSpeedRound: c.isSpeedRound,
       })),
       ...player.receivedConnections.map((c) => ({
         id: c.id,
@@ -77,6 +78,7 @@ export async function GET(
         shortCode: c.playerA.shortCode,
         confirmedAt: c.confirmedAt,
         squaresSatisfied: c.squaresSatisfiedB,
+        isSpeedRound: c.isSpeedRound,
       })),
     ].sort(
       (a, b) =>
@@ -149,6 +151,8 @@ export async function GET(
         identityToken: player.identityToken,
         checkedInAt: player.checkedInAt,
         eventId: player.eventId,
+        isDisqualified: player.isDisqualified,
+        disqualificationReason: player.disqualificationReason,
       },
       event: {
         id: player.event.id,
@@ -160,6 +164,9 @@ export async function GET(
         completionMode: player.event.completionMode,
         prizeDescription: player.event.prizeDescription,
         gameEndTime: player.event.gameEndTime,
+        speedRoundActive: player.event.speedRoundActive,
+        speedRoundEndTime: player.event.speedRoundEndTime,
+        scanCooldownSeconds: player.event.scanCooldownSeconds,
       },
       card: enrichedCard,
       connections,

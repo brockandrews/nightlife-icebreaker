@@ -30,6 +30,16 @@ export async function POST(request: Request) {
       );
     }
 
+    if (initiator.isDisqualified) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your account has been disqualified by the event host.",
+        },
+        { status: 403 }
+      );
+    }
+
     if (initiator.event.status !== "ACTIVE") {
       return NextResponse.json(
         {
@@ -43,17 +53,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Anti-fraud: Cooldown check (20 seconds between initiated scans)
+    // 2. Anti-fraud: Cooldown check (default 20 seconds between initiated scans)
+    const cooldownThreshold = initiator.event.scanCooldownSeconds || 20;
     if (initiator.lastScannedAt) {
       const elapsedSeconds =
         (Date.now() - new Date(initiator.lastScannedAt).getTime()) / 1000;
-      const cooldownThreshold = 15; // 15s cooldown
       if (elapsedSeconds < cooldownThreshold) {
         const remaining = Math.ceil(cooldownThreshold - elapsedSeconds);
         return NextResponse.json(
           {
             success: false,
             error: `Please wait ${remaining}s before your next connection attempt`,
+            remainingSeconds: remaining,
           },
           { status: 429 }
         );
@@ -79,6 +90,16 @@ export async function POST(request: Request) {
           error: "Player code not found in this event. Check the 4-letter code!",
         },
         { status: 404 }
+      );
+    }
+
+    if (target.isDisqualified) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This player is not available to connect.",
+        },
+        { status: 400 }
       );
     }
 

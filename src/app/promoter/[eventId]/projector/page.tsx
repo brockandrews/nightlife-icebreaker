@@ -25,7 +25,29 @@ export default function ProjectorBigScreenView() {
   const [hudStats, setHudStats] = useState<any>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [remainingSeconds, setRemainingSeconds] = useState<number>(0);
+  const [speedRoundRemaining, setSpeedRoundRemaining] = useState<number>(0);
   const [activeAnnouncement, setActiveAnnouncement] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!eventData?.speedRoundActive || !eventData?.speedRoundEndTime) {
+      setSpeedRoundRemaining(0);
+      return;
+    }
+
+    const updateSpeedTimer = () => {
+      const diff = Math.max(
+        0,
+        Math.floor(
+          (new Date(eventData.speedRoundEndTime).getTime() - Date.now()) / 1000
+        )
+      );
+      setSpeedRoundRemaining(diff);
+    };
+
+    updateSpeedTimer();
+    const interval = setInterval(updateSpeedTimer, 1000);
+    return () => clearInterval(interval);
+  }, [eventData?.speedRoundActive, eventData?.speedRoundEndTime]);
 
   const fetchLiveState = useCallback(async () => {
     try {
@@ -164,6 +186,42 @@ export default function ProjectorBigScreenView() {
           <span className="px-3 py-1 bg-purple-500/30 border border-purple-300 text-purple-200 text-xs font-black uppercase rounded-full tracking-wider animate-pulse shrink-0">
             ROOM BROADCAST
           </span>
+        </div>
+      )}
+
+      {/* Speed Mixer Lightning Round Banner (PRD §6.5) */}
+      {eventData?.speedRoundActive && (
+        <div className="mt-4 p-5 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 text-black rounded-3xl shadow-2xl shadow-orange-500/50 flex items-center justify-between border-4 border-yellow-300 animate-pulse">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-black text-amber-400 flex items-center justify-center font-black text-2xl shadow-lg">
+              ⚡
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-widest px-2.5 py-0.5 bg-black text-yellow-300 rounded-full">
+                  LIGHTNING BLITZ
+                </span>
+                <span className="text-sm font-extrabold uppercase tracking-wide">
+                  DOUBLE SPARK SPEED MIXER
+                </span>
+              </div>
+              <h2 className="text-2xl font-black text-black tracking-tight mt-0.5">
+                FIND SOMEONE NEW RIGHT NOW!
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 bg-black text-yellow-300 px-6 py-2.5 rounded-2xl shadow-inner border border-yellow-400/50">
+            <Flame className="w-8 h-8 text-orange-500 fill-orange-500 animate-bounce" />
+            <div className="text-right font-mono">
+              <span className="text-[10px] uppercase font-black tracking-widest text-yellow-500 block">
+                SPEED ROUND CLOCK
+              </span>
+              <span className="text-4xl font-black tracking-tighter">
+                {Math.floor(speedRoundRemaining / 60)}:
+                {(speedRoundRemaining % 60).toString().padStart(2, "0")}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

@@ -89,6 +89,9 @@ export async function GET(
         gameStartTime: event.gameStartTime,
         gameEndTime: event.gameEndTime,
         doorCodeToken: event.doorCodeToken,
+        speedRoundActive: event.speedRoundActive,
+        speedRoundEndTime: event.speedRoundEndTime,
+        scanCooldownSeconds: event.scanCooldownSeconds,
       },
       hud: {
         totalPlayers,
@@ -107,6 +110,7 @@ export async function GET(
         playerA: c.playerA.displayName,
         playerB: c.playerB.displayName,
         confirmedAt: c.confirmedAt,
+        isSpeedRound: c.isSpeedRound,
       })),
     });
   } catch (error: any) {

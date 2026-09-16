@@ -83,19 +83,33 @@ export function SafetyModal({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">
             <p className="text-xs text-slate-300">
-              We want everyone to have a safe, fun, and platonic experience. Reports are sent directly to the event host.
+              We want everyone to have a safe, fun, and platonic experience. Reports are sent directly and confidentially to the event host.
             </p>
 
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">
-                Select Person (or enter details)
+                Who are you reporting?
               </label>
+              {connectionsList.length > 0 && (
+                <select
+                  value={selectedPlayer}
+                  onChange={(e) => setSelectedPlayer(e.target.value)}
+                  className="w-full mb-2 py-2 px-3 bg-[#0B0E14] border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-red-400"
+                >
+                  <option value="">Select from your recent connections...</option>
+                  {connectionsList.map((c, idx) => (
+                    <option key={c.id || idx} value={c.shortCode || c.connectedWith}>
+                      {c.connectedWith} ({c.shortCode || "Verified Connection"})
+                    </option>
+                  ))}
+                </select>
+              )}
               <input
                 type="text"
                 value={selectedPlayer}
                 onChange={(e) => setSelectedPlayer(e.target.value)}
-                placeholder="Name or 4-letter PIN"
-                className="w-full py-2 px-3 bg-[#0B0E14] border border-slate-700 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-red-400"
+                placeholder="Or enter 4-letter PIN / Name"
+                className="w-full py-2 px-3 bg-[#0B0E14] border border-slate-700 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-red-400 font-mono"
               />
             </div>
 
@@ -103,11 +117,33 @@ export function SafetyModal({
               <label className="block text-xs font-semibold text-slate-400 mb-1">
                 Reason for report
               </label>
+              {/* Quick reason chips */}
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {[
+                  "Inappropriate behavior",
+                  "Unwanted contact / harassment",
+                  "Cheating / phone-passing",
+                  "Underage / intoxication",
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setReason(preset)}
+                    className={`text-[10px] px-2 py-1 rounded-lg border transition-all ${
+                      reason === preset
+                        ? "bg-red-500/30 border-red-400 text-red-200"
+                        : "bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
-                placeholder="Harassment, inappropriate behavior, etc."
+                placeholder="Describe what happened..."
                 required
                 className="w-full py-2 px-3 bg-[#0B0E14] border border-slate-700 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-red-400 resize-none"
               />
@@ -116,7 +152,7 @@ export function SafetyModal({
             <button
               type="submit"
               disabled={isSubmitting || !reason.trim()}
-              className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-40"
+              className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-40 shadow-lg shadow-red-600/30 active:scale-98"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

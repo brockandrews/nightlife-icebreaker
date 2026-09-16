@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     let updatedStatus = event.status;
     let updatedEndTime = event.gameEndTime;
     let updatedCompletedAt = event.completedAt;
+    let updatedSpeedRoundActive = event.speedRoundActive;
+    let updatedSpeedRoundEndTime = event.speedRoundEndTime;
 
     if (action === "PAUSE") {
       updatedStatus = "PAUSED";
@@ -35,6 +37,15 @@ export async function POST(request: Request) {
       updatedStatus = "COMPLETED";
       updatedEndTime = new Date();
       updatedCompletedAt = new Date();
+      updatedSpeedRoundActive = false;
+      updatedSpeedRoundEndTime = null;
+    } else if (action === "START_SPEED_ROUND") {
+      const duration = body.durationMinutes || 3;
+      updatedSpeedRoundActive = true;
+      updatedSpeedRoundEndTime = new Date(Date.now() + duration * 60 * 1000);
+    } else if (action === "END_SPEED_ROUND") {
+      updatedSpeedRoundActive = false;
+      updatedSpeedRoundEndTime = null;
     }
 
     const updatedEvent = await prisma.event.update({
@@ -43,6 +54,8 @@ export async function POST(request: Request) {
         status: updatedStatus,
         gameEndTime: updatedEndTime,
         completedAt: updatedCompletedAt,
+        speedRoundActive: updatedSpeedRoundActive,
+        speedRoundEndTime: updatedSpeedRoundEndTime,
       },
     });
 
@@ -50,6 +63,8 @@ export async function POST(request: Request) {
     realtimeHub.broadcast(`event:${eventId}`, "GAME_STATE_UPDATE", {
       status: updatedEvent.status,
       gameEndTime: updatedEvent.gameEndTime,
+      speedRoundActive: updatedEvent.speedRoundActive,
+      speedRoundEndTime: updatedEvent.speedRoundEndTime,
       action,
     });
 

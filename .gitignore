@@ -37,3 +37,6 @@ next-env.d.ts
 # prisma sqlite fallback
 prisma/*.db
 prisma/*.db-journal
+
+# scratch test scripts
+scratch/

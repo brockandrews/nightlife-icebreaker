@@ -494,6 +494,23 @@ export async function claimSquareSelection(
     throw new Error("This square is already completed");
   }
 
+  const [playerA, playerB] = await Promise.all([
+    prisma.player.findUnique({
+      where: { id: playerId },
+      select: { isDisqualified: true },
+    }),
+    prisma.player.findUnique({
+      where: { id: matchedPlayerId },
+      select: { isDisqualified: true },
+    }),
+  ]);
+
+  if (playerA?.isDisqualified || playerB?.isDisqualified) {
+    throw new Error(
+      "Cannot claim square: One or both players have been disqualified by the host"
+    );
+  }
+
   // Anti-abuse rule: Enforce that matchedPlayerId has not already been used on this card
   const alreadyMatchedSquare = square.card.squares.find(
     (sq) => sq.matchedPlayerId === matchedPlayerId && sq.id !== squareId
@@ -567,7 +584,7 @@ export async function executeHandshakeEvaluation(
   playerBId: string
 ) {
   // 1. Fetch both players and their survey responses and cards
-  const [playerA, playerB] = await Promise.all([
+  const [playerA, playerB, event] = await Promise.all([
     prisma.player.findUnique({
       where: { id: playerAId },
       include: {
@@ -582,10 +599,18 @@ export async function executeHandshakeEvaluation(
         card: { include: { squares: true } },
       },
     }),
+    prisma.event.findUnique({
+      where: { id: eventId },
+      select: { speedRoundActive: true },
+    }),
   ]);
 
   if (!playerA || !playerB) {
     throw new Error("One or both players not found");
+  }
+
+  if (playerA.isDisqualified || playerB.isDisqualified) {
+    throw new Error("One or both players have been disqualified by the host");
   }
 
   if (playerA.eventId !== eventId || playerB.eventId !== eventId) {
@@ -684,6 +709,8 @@ export async function executeHandshakeEvaluation(
       ? `${playerA.id}:${playerB.id}`
       : `${playerB.id}:${playerA.id}`;
 
+  const isSpeedRound = Boolean(event?.speedRoundActive);
+
   const connection = await prisma.connection.upsert({
     where: {
       eventId_pairKey: {
@@ -694,6 +721,7 @@ export async function executeHandshakeEvaluation(
     update: {
       squaresSatisfiedA: singleCandidateA.length > 0 ? 1 : 0,
       squaresSatisfiedB: singleCandidateB.length > 0 ? 1 : 0,
+      isSpeedRound,
     },
     create: {
       eventId,
@@ -702,6 +730,7 @@ export async function executeHandshakeEvaluation(
       pairKey,
       squaresSatisfiedA: singleCandidateA.length > 0 ? 1 : 0,
       squaresSatisfiedB: singleCandidateB.length > 0 ? 1 : 0,
+      isSpeedRound,
       confirmedAt: now,
     },
   });
@@ -775,14 +804,18 @@ export async function getLiveLeaderboard(eventId: string) {
       distinctTraitsCount,
       isCardCompleted: p.card?.isCompleted || false,
       cardCompletedAt: p.card?.completedAt || null,
+      isDisqualified: p.isDisqualified || false,
       lastScoredAt,
       checkedInAt: p.checkedInAt,
     };
   });
 
+  const eligible = leaderboard.filter((p) => !p.isDisqualified);
+  const disqualified = leaderboard.filter((p) => p.isDisqualified);
+
   if (event.scoringModel === "FIRST_TO_COMPLETE") {
     // Sort by card completion first, then completed squares, then earlier timestamps
-    leaderboard.sort((a, b) => {
+    eligible.sort((a, b) => {
       if (a.isCardCompleted && !b.isCardCompleted) return -1;
       if (!a.isCardCompleted && b.isCardCompleted) return 1;
       if (a.isCardCompleted && b.isCardCompleted) {
@@ -807,7 +840,7 @@ export async function getLiveLeaderboard(eventId: string) {
     });
   } else {
     // Default: "MOST_CONNECTIONS" (or most squares filled)
-    leaderboard.sort((a, b) => {
+    eligible.sort((a, b) => {
       // Primary: total verified connections (or squares completed)
       if (b.connectionsCount !== a.connectionsCount) {
         return b.connectionsCount - a.connectionsCount;
@@ -828,10 +861,17 @@ export async function getLiveLeaderboard(eventId: string) {
     });
   }
 
-  return leaderboard.map((entry, index) => ({
+  const rankedEligible = eligible.map((entry, index) => ({
     rank: index + 1,
     ...entry,
   }));
+
+  const rankedDisqualified = disqualified.map((entry) => ({
+    rank: null as any,
+    ...entry,
+  }));
+
+  return [...rankedEligible, ...rankedDisqualified];
 }
 
 /**
@@ -1058,3 +1098,126 @@ export async function computeTraitHeat(eventId: string) {
 
   return categoryHeat;
 }
+
+export interface AnomalyReport {
+  playerId: string;
+  displayName: string;
+  shortCode: string;
+  riskLevel: "HIGH" | "MEDIUM";
+  reasons: string[];
+  details: string;
+  recommendation: string;
+  isDisqualified: boolean;
+  connectionsCount: number;
+  fastestStreakSeconds?: number;
+}
+
+/**
+ * Runs automated audit on event connections to detect fraud and anomalies before prize award (PRD §2, §6.6).
+ */
+export async function auditEventAnomalies(
+  eventId: string
+): Promise<AnomalyReport[]> {
+  const players = await prisma.player.findMany({
+    where: { eventId },
+    include: {
+      card: { include: { squares: true } },
+      initiatedConnections: { select: { confirmedAt: true } },
+      receivedConnections: { select: { confirmedAt: true } },
+      reportsReceived: { select: { id: true, reason: true } },
+    },
+  });
+
+  const anomalies: AnomalyReport[] = [];
+
+  for (const p of players) {
+    const reasons: string[] = [];
+    let riskLevel: "HIGH" | "MEDIUM" = "MEDIUM";
+    let fastestStreakSeconds: number | undefined;
+
+    // Combine all verified connection timestamps
+    const connectionDates = [
+      ...p.initiatedConnections.map((c) => c.confirmedAt.getTime()),
+      ...p.receivedConnections.map((c) => c.confirmedAt.getTime()),
+    ].sort((a, b) => a - b);
+
+    const connectionsCount = connectionDates.length;
+
+    // 1. Rapid-fire bursts check: 4+ connections within 90 seconds
+    if (connectionDates.length >= 4) {
+      for (let i = 0; i <= connectionDates.length - 4; i++) {
+        const diffSecs = Math.round(
+          (connectionDates[i + 3] - connectionDates[i]) / 1000
+        );
+        if (diffSecs <= 90) {
+          reasons.push(
+            `Rapid-fire burst: 4 connections in ${diffSecs}s (potential device-sharing or unverified scanning)`
+          );
+          riskLevel = "HIGH";
+          fastestStreakSeconds = diffSecs;
+          break;
+        }
+      }
+    }
+
+    // 2. Impossible card speedrun: card completed in < 180s (3 minutes) from check-in
+    if (p.card?.isCompleted && p.card.completedAt) {
+      const completionSeconds = Math.round(
+        (p.card.completedAt.getTime() - p.checkedInAt.getTime()) / 1000
+      );
+      if (completionSeconds < 180) {
+        reasons.push(
+          `Impossible speedrun: Full card completed in ${completionSeconds}s from check-in`
+        );
+        riskLevel = "HIGH";
+      }
+    }
+
+    // 3. Safety reports filed against this player
+    const reportsCount = p.reportsReceived.length;
+    if (reportsCount >= 2) {
+      reasons.push(
+        `Multiple incident reports filed against player (${reportsCount} reports)`
+      );
+      riskLevel = "HIGH";
+    } else if (reportsCount === 1) {
+      reasons.push(`1 incident report filed against player`);
+    }
+
+    // 4. Already disqualified
+    if (p.isDisqualified) {
+      reasons.push(
+        `Player is currently disqualified by host${
+          p.disqualificationReason ? `: "${p.disqualificationReason}"` : ""
+        }`
+      );
+      riskLevel = "HIGH";
+    }
+
+    if (reasons.length > 0) {
+      anomalies.push({
+        playerId: p.id,
+        displayName: p.displayName,
+        shortCode: p.shortCode,
+        riskLevel,
+        reasons,
+        details: reasons.join("; "),
+        recommendation:
+          riskLevel === "HIGH"
+            ? "Disqualify player from prize contention before awarding prizes"
+            : "Monitor velocity closely",
+        isDisqualified: p.isDisqualified,
+        connectionsCount,
+        fastestStreakSeconds,
+      });
+    }
+  }
+
+  // Sort by HIGH risk first, then by connections count desc
+  return anomalies.sort((a, b) => {
+    if (a.riskLevel === "HIGH" && b.riskLevel !== "HIGH") return -1;
+    if (a.riskLevel !== "HIGH" && b.riskLevel === "HIGH") return 1;
+    return b.connectionsCount - a.connectionsCount;
+  });
+}
+

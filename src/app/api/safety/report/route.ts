@@ -24,28 +24,71 @@ export async function POST(request: Request) {
       );
     }
 
+    // Resolve reported target player by ID, 4-letter PIN, or name
+    let targetPlayer = await prisma.player.findUnique({
+      where: { id: reportedId },
+    });
+
+    if (!targetPlayer) {
+      const trimmed = String(reportedId).trim();
+      targetPlayer = await prisma.player.findFirst({
+        where: {
+          eventId: reporter.eventId,
+          OR: [
+            { shortCode: trimmed.toUpperCase() },
+            { displayName: { equals: trimmed, mode: "insensitive" } },
+          ],
+        },
+      });
+    }
+
+    if (!targetPlayer) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Could not find player "${reportedId}". Please choose from your connection list or enter their 4-letter PIN.`,
+        },
+        { status: 404 }
+      );
+    }
+
     const report = await prisma.report.create({
       data: {
         eventId: reporter.eventId,
         reporterId,
-        reportedId,
+        reportedId: targetPlayer.id,
         reason: reason.trim(),
+        status: "PENDING",
+      },
+      include: {
+        reporter: { select: { displayName: true, shortCode: true } },
+        reported: { select: { displayName: true, shortCode: true } },
       },
     });
 
-    // Automatically block reported user as well
+    // Automatically block reported user
     await prisma.blockedPlayer.upsert({
       where: {
         blockerId_blockedId: {
           blockerId: reporterId,
-          blockedId: reportedId,
+          blockedId: targetPlayer.id,
         },
       },
       update: {},
       create: {
         blockerId: reporterId,
-        blockedId: reportedId,
+        blockedId: targetPlayer.id,
       },
+    });
+
+    // Broadcast safety report alert to Host Live Console
+    const { realtimeHub } = await import("@/lib/realtime");
+    realtimeHub.broadcast(`event:${reporter.eventId}`, "SAFETY_REPORT_ALERT", {
+      reportId: report.id,
+      reporterName: report.reporter.displayName,
+      reportedName: report.reported.displayName,
+      reason: report.reason,
+      createdAt: report.createdAt.toISOString(),
     });
 
     return NextResponse.json({
